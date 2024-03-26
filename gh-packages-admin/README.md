@@ -24,6 +24,16 @@ A single action with various admin functions for the github packages.
 
 
 
+# Building Docker Container
+docker build . -f Dockerfile -t gh-package-admin
+docker image prune
+
+# Running at CLI
+docker container run -it --rm gh-packages-admin:latest --help
+docker container run -it --rm gh-packages-admin:latest --action listPackageVersions --ghtoken <token> --org <org> --package_type container --package_name <name> --include "metadata.container.tags[*]" "latest"  --summary
+
+
+
 
 
 

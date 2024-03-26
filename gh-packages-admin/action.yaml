@@ -1,7 +1,7 @@
 name: GitHub Packages Admin
 description: Administer GitHub Packages
 inputs:
-    ARTIFACT_FILENAME:
+    action:
       required: true
     DEPLOY_SHARE:
       required: true

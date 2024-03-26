@@ -1,3 +1,9 @@
+"""
+A simple python script that can run a set of GitHub Package Admin functions.
+- list packages
+- list package versions
+- delete package versions
+"""
 import sys
 import argparse
 from typing import Optional
@@ -30,7 +36,8 @@ INFO_PRINT = lambda msg: print(msg)
 
 class ACTION(str, Enum):
     LIST_PACKAGES = "listPackages"
-    LIST_PACKAGE_VERSION = "listPackageVersions"
+    LIST_PACKAGE_VERSIONS = "listPackageVersions"
+    DELETE_PACKAGE_VERSIONS = "deletePackageVersions"
 
 
 def _generateRerquestHeaders(ghtoken: str) -> dict:
@@ -44,106 +51,157 @@ def _generateRerquestHeaders(ghtoken: str) -> dict:
     }
 
 
+def _includeFilter(itemList: list[str],
+                   include: Optional[tuple[str, str]],
+                   summary: dict) -> tuple[list[str], dict]:
+    """
+    Returns a NEW list of filtered items.
+    And the origianl summary dict altered
+    """
+    assert len(include) == 2, "Include Filter must have 2 values.  (path, regex)"
+    includePath = include[0]
+    includeRegex = include[1]
+
+    summary["include_filter"] = f"'{includePath}', '{includeRegex}'"
+
+    # Item Path Matcher, and it's matching regex value matcher
+    fieldPathExpr = jsonpath_ng.parse(includePath)
+    fieldValueExpr = re.compile(includeRegex)
+
+    newItemList = []
+
+    # for each element in the root result model list. Look for a item path/value match
+    for item in itemList:
+
+        DEBUG_PRINT("-")
+        DEBUG_PRINT(f"Searching: {item}")
+
+        # Find all/any path matches into this item
+        fieldPathList = fieldPathExpr.find(item)
+        DEBUG_PRINT(f"Found {len(fieldPathList)} values at path'{fieldPathExpr}'")
+        for fieldPath in fieldPathList:
+            # Grab the value at this path. We go to strings on all, since we're going to regex anyway
+            fieldValue = str(fieldPath.value)
+
+            # If we get a value match, add to the new root list, and break this loop
+            if fieldValueExpr.match(fieldValue) is not None:
+                DEBUG_PRINT(f"Regex '{includeRegex} matches Value '{fieldValue}'. Adding to result list and moving to next item")
+                newItemList.append(item)
+                DEBUG_PRINT(f'Filter Result List Size [{len(newItemList)}]')
+                break
+
+    DEBUG_PRINT(f"Include Filter Result {len(newItemList)}")
+    summary["include_filter_result"] = len(newItemList)
+    return newItemList, summary
+
+
+def _excludeFilter(itemList: list[str],
+                   exclude: Optional[tuple[str, str]],
+                   summary: dict) -> tuple[list[str], dict]:
+    """
+    Run the exclude filter on the item list
+    """
+    assert len(exclude) == 2, "Exclude Filter must have 2 values.  (path, regex)"
+    excludePath = exclude[0]
+    excludeRegex = exclude[1]
+
+    summary["exclude_filter"] = f"'{excludePath}', '{excludeRegex}'"
+
+    # Item Path Matcher, and it's matching regex value matcher
+    fieldPathExpr = jsonpath_ng.parse(excludePath)
+    fieldValueExpr = re.compile(excludeRegex)
+
+    newItemList = []
+
+    # for each element in the root result model list. Look for a item path/value match
+    for item in itemList:
+
+        DEBUG_PRINT("-")
+        DEBUG_PRINT(f"Searching: {item}")
+
+        # Find all/any path matches into this item
+        fieldPathList = fieldPathExpr.find(item)
+        DEBUG_PRINT(f"Found {len(fieldPathList)} values at path'{fieldPathExpr}'")
+        if len(fieldPathList) == 0:
+            newItemList.append(item)
+        else:
+            for fieldPath in fieldPathList:
+                # Grab the value at this path. We go to strings on all, since we're going to regex anyway
+                fieldValue = str(fieldPath.value)
+
+                # If we DON'T get a value match, add to the new root list, and break this loop
+                if fieldValueExpr.match(fieldValue) is None:
+                    DEBUG_PRINT(f"Regex '{excludeRegex} does NOT matche Value '{fieldValue}'. Adding to result list and moving to next item")
+                    newItemList.append(item)
+                    DEBUG_PRINT(f'Filter Result List Size [{len(newItemList)}]')
+                    break
+
+    DEBUG_PRINT(f"Exclude Filter Result {len(newItemList)}")
+    summary["exclude_filter_result"] = len(newItemList)
+    return newItemList, summary
+
+
+def _sortBy(itemList: list[str],
+             sortBy: str,
+             sortReverse: bool,
+             summary: dict) -> tuple[list[str], dict]:
+    """
+    Run the sort by on the provided list
+    """
+    summary["sort_by"] = f"'{sortBy}', reverse='{sortReverse}'"
+
+    fieldPathExpr = jsonpath_ng.parse(sortBy)
+
+    newItemList = []  # A list of tuples. [0] is the sorting value. [1] is the item
+
+    # Build a list of tuples, with the desired field value in the [0] of the tuple
+    for item in itemList:
+
+        fieldValues = [item.value for item in fieldPathExpr.find(item)]
+        fieldValues.sort(reverse=sortReverse)
+        fieldValue = (fieldValues or [None])[0]
+        newItemList.append( (fieldValue, item) )
+
+    # Sort pushing Nones to the end
+    newItemList.sort(key=lambda x: (x[0] is None, x[0]), reverse=sortReverse)
+
+    newItemList = list(map(lambda x: x[1], newItemList))
+    return newItemList, summary
+
+
 def _filterAndSortListResponseJson(jsonData: str,
-                                   include: Optional[tuple[str, str]],
-                                   exclude: Optional[tuple[str, str]],
-                                   summary: dict) -> str:
+                                   include: Optional[tuple[str, str]],  # path, regex
+                                   exclude: Optional[tuple[str, str]],  # path, regex
+                                   sortBy: Optional[str],
+                                   sortReverse: Optional[bool],
+                                   summary: dict) -> tuple[list[str], dict]:
     """
     Take the raw string json response. This response should contain a root list of items.
     Run the include and exclude filters on it.
     Apply the sorting rule.
-    return the result
+    return the result as a json string
     """
     DEBUG_PRINT(f"include filter: {include}")
     DEBUG_PRINT(f"exclude filter: {exclude}")
+    DEBUG_PRINT(f"sort by: {sortBy}")
 
     # Main List Matcher. Find each item from the root list point.
     rootListPathExpr = jsonpath_ng.parse("[*]")
     rootItemList = [item.value for item in rootListPathExpr.find(jsonData)]  # Flatten from a DatumInContext into a simple list
     DEBUG_PRINT(f"Contains {len(rootItemList)} total items")
-    summary["items_found"] = len(rootItemList)
+    summary["initial_items_found"] = len(rootItemList)
 
-    # Inclusion Regex Matching on a give ()
     if include:
-        assert len(include) == 2, "Include Filter must have 2 values.  (path, regex)"
-        includePath = include[0]
-        includeRegex = include[1]
+        rootItemList, summary = _includeFilter(itemList=rootItemList, include=include, summary=summary)
 
-        summary["include_filter"] = f"'{includePath}', '{includeRegex}'"
-
-        # Item Path Matcher, and it's matching regex value matcher
-        itemPathExpr = jsonpath_ng.parse(includePath)
-        itemValueExpr = re.compile(includeRegex)
-
-        newRootItemList = []
-
-        # for each element in the root result model list. Look for a item path/value match
-        for rootItem in rootItemList:
-            rootItemValue = rootItem
-            DEBUG_PRINT("-")
-            DEBUG_PRINT(f"Searching: {rootItemValue}")
-
-            # Find all/any path matches into this item
-            itemPathList = itemPathExpr.find(rootItemValue)
-            DEBUG_PRINT(f"Found {len(itemPathList)} values at path'{itemPathExpr}'")
-            for itemPath in itemPathList:
-                # Grab the value at this path. We go to strings on all, since we're going to regex anyway
-                itemPathValue = str(itemPath.value)
-
-                # If we get a value match, add to the new root list, and break this loop
-                if itemValueExpr.match(itemPathValue) is not None:
-                    DEBUG_PRINT(f"Regex '{includeRegex} matches Value '{itemPathValue}'. Adding to result list and moving to next item")
-                    newRootItemList.append(rootItemValue)
-                    DEBUG_PRINT(f'Filter Result List Size [{len(newRootItemList)}]')
-                    break
-
-        DEBUG_PRINT(f"Include Filter Result {len(newRootItemList)}")
-        summary["include_filter_result"] = len(newRootItemList)
-        rootItemList = newRootItemList
-
-
-    # Inclusion Regex Matching on a give ()
     if exclude:
-        assert len(exclude) == 2, "Exclude Filter must have 2 values.  (path, regex)"
-        excludePath = exclude[0]
-        excludeRegex = exclude[1]
+        rootItemList, summary = _excludeFilter(itemList=rootItemList, exclude=exclude, summary=summary)
 
-        summary["exclude_filter"] = f"'{excludePath}', '{excludeRegex}'"
+    if sortBy:
+        rootItemList, summary = _sortBy(itemList=rootItemList, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
 
-        # Item Path Matcher, and it's matching regex value matcher
-        itemPathExpr = jsonpath_ng.parse(excludePath)
-        itemValueExpr = re.compile(excludeRegex)
-
-        newRootItemList = []
-
-        # for each element in the root result model list. Look for a item path/value match
-        for rootItem in rootItemList:
-            rootItemValue = rootItem
-            DEBUG_PRINT("-")
-            DEBUG_PRINT(f"Searching: {rootItemValue}")
-
-            # Find all/any path matches into this item
-            itemPathList = itemPathExpr.find(rootItemValue)
-            DEBUG_PRINT(f"Found {len(itemPathList)} values at path'{itemPathExpr}'")
-            if len(itemPathList) == 0:
-                newRootItemList.append(rootItemValue)
-            else:
-                for itemPath in itemPathList:
-                    # Grab the value at this path. We go to strings on all, since we're going to regex anyway
-                    itemPathValue = str(itemPath.value)
-
-                    # If we DON'T get a value match, add to the new root list, and break this loop
-                    if itemValueExpr.match(itemPathValue) is None:
-                        DEBUG_PRINT(f"Regex '{excludeRegex} does NOT matche Value '{itemPathValue}'. Adding to result list and moving to next item")
-                        newRootItemList.append(rootItemValue)
-                        DEBUG_PRINT(f'Filter Result List Size [{len(newRootItemList)}]')
-                        break
-
-        DEBUG_PRINT(f"Exclude Filter Result {len(newRootItemList)}")
-        summary["exclude_filter_result"] = len(newRootItemList)
-        rootItemList = newRootItemList
-
-    return jsonData
+    summary["final_items_found"] = len(rootItemList)
+    return rootItemList, summary
 
 
 
@@ -153,6 +211,8 @@ def _listPackages(ghtoken: str,
                   packageType: str,
                   include: Optional[tuple[str, str]],
                   exclude: Optional[tuple[str, str]],
+                  sortBy: Optional[str],
+                  sortReverse: Optional[bool],
                   summarize: bool) -> dict:
     """
     Get the list of packages, and return the json response
@@ -176,12 +236,12 @@ def _listPackages(ghtoken: str,
         "user": user,
         "packageType": packageType,
     }
-    jsonData = _filterAndSortListResponseJson(jsonData=jsonData, include=include, exclude=exclude, summary=summary)
+    packageList, summary = _filterAndSortListResponseJson(jsonData=jsonData, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
 
     if summarize:
         INFO_PRINT(json.dumps(summary, indent=4))
     else:
-        INFO_PRINT(json.dumps(jsonData, indent=4))
+        INFO_PRINT(json.dumps(packageList, indent=4))
 
 
 def _listPackageVersions(ghtoken: str,
@@ -191,6 +251,8 @@ def _listPackageVersions(ghtoken: str,
                          packageName: str,
                          include: Optional[tuple[str, str]],
                          exclude: Optional[tuple[str, str]],
+                         sortBy: Optional[str],
+                         sortReverse: Optional[bool],
                          summarize: bool) -> dict:
     """
     Get the list of package versions for the specific package
@@ -216,12 +278,12 @@ def _listPackageVersions(ghtoken: str,
         "packageName": packageName
     }
 
-    jsonData = _filterAndSortListResponseJson(jsonData=jsonData, include=include, exclude=exclude, summary=summary)
+    versionList, summary = _filterAndSortListResponseJson(jsonData=jsonData, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
 
     if summarize:
         INFO_PRINT(json.dumps(summary, indent=4))
     else:
-        INFO_PRINT(json.dumps(jsonData, indent=4))
+        INFO_PRINT(json.dumps(versionList, indent=4))
 
 
 if __name__ == '__main__':
@@ -279,6 +341,17 @@ if __name__ == '__main__':
                         default=None,
                         nargs=2,
                         help="Exclude regex field matches")
+    parser.add_argument('--sort_by',
+                        dest='sort_by',
+                        required=False,
+                        default=None,
+                        help="Sort by a field")
+    parser.add_argument('--reverse',
+                        dest='reverse',
+                        action='store_true',
+                        required=False,
+                        default=False,
+                        help="Reverse the Sort by. Ignored with no --sort_by provided")
     parser.add_argument('--summary',
                         dest='summary',
                         action='store_true',
@@ -315,10 +388,12 @@ if __name__ == '__main__':
                       packageType=args.package_type,
                       include=args.include,
                       exclude=args.exclude,
+                      sortBy=args.sort_by,
+                      sortReverse=bool(args.reverse),
                       summarize=args.summary)
 
-    elif action == ACTION.LIST_PACKAGE_VERSION:
-        assert args.package_name, f"--package_name is required with --action {ACTION.LIST_PACKAGE_VERSION}"
+    elif action == ACTION.LIST_PACKAGE_VERSIONS:
+        assert args.package_name, f"--package_name is required with --action {ACTION.LIST_PACKAGE_VERSIONS}"
         _listPackageVersions(ghtoken=args.ghtoken,
                              org=args.org,
                              user=args.user,
@@ -326,6 +401,8 @@ if __name__ == '__main__':
                              packageName=args.package_name,
                              include=args.include,
                              exclude=args.exclude,
+                             sortBy=args.sort_by,
+                             sortReverse=bool(args.reverse),
                              summarize=args.summary)
 
 

@@ -1,0 +1,22 @@
+#!/bin/sh -l
+
+ARTIFACT_FILENAME=$1
+DEPLOY_SHARE=$2
+DEPLOY_PATH=$3
+DEPLOY_DOMAIN=$4
+DEPLOY_USER=$5
+DEPLOY_PWD=$6
+
+echo ">>> ARTIFACT_FILENAME: $ARTIFACT_FILENAME"
+echo ">>> DEPLOY_SHARE:      $DEPLOY_SHARE"
+echo ">>> DEPLOY_PATH:       $DEPLOY_PATH"
+echo ">>> DEPLOY_DOMAIN:     $DEPLOY_DOMAIN"
+echo ">>> DEPLOY_USER:       $DEPLOY_USER"
+#echo ">>> DEPLOY_PWD:        $DEPLOY_PWD"
+
+echo "touch" > $ARTIFACT_FILENAME
+smbclient -W $DEPLOY_DOMAIN \
+    -U ${DEPLOY_USER}%${DEPLOY_PWD} \
+    $DEPLOY_SHARE \
+    --directory ${DEPLOY_PATH} \
+    -c " put $ARTIFACT_FILENAME upload.tmp; rename upload.tmp $ARTIFACT_FILENAME -f" 

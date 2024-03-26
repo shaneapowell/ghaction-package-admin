@@ -1,0 +1,25 @@
+name: GitHub Packages Admin
+description: Administer GitHub Packages
+inputs:
+    ARTIFACT_FILENAME:
+      required: true
+    DEPLOY_SHARE:
+      required: true
+    DEPLOY_PATH:
+      required: true
+    DEPLOY_DOMAIN:
+      required: true
+    DEPLOY_USER:
+      required: true
+    DEPLOY_PWD:
+      required: true
+runs:
+  using: docker
+  image: Dockerfile
+  args:
+    - ${{ inputs.ARTIFACT_FILENAME }}
+    - ${{ inputs.DEPLOY_SHARE }}
+    - ${{ inputs.DEPLOY_PATH }}
+    - ${{ inputs.DEPLOY_DOMAIN }}
+    - ${{ inputs.DEPLOY_USER }}
+    - ${{ inputs.DEPLOY_PWD }}

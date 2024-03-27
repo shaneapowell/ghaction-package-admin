@@ -6,7 +6,7 @@ A simple python script that can run a set of GitHub Package Admin functions.
 """
 import sys
 import argparse
-from typing import Optional, Any
+from typing import Optional, Union, Any
 from enum import Enum
 import requests
 import json
@@ -20,20 +20,20 @@ KEY_USER = "user"
 API_ROOT = "https://api.github.com"
 
 # We'll impose a paging limit of 50. GitHub already imposes a limit of 100. And a default of 30
-GITHUB_PER_PAGE_LIMIT = 50
+GITHUB_PER_PAGE_LIMIT = 100
 
 
 LIST_PACKAGES_FOR_ORG = API_ROOT + "/orgs/{org}/packages?package_type={package_type}"
 LIST_PACKAGES_FOR_USER = API_ROOT + "/users/{username}/packages?package_type={package_type}"
 
-DELETE_PACKAGE_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}"
-DELETE_PACKAGE_FOR_USER = API_ROOT + "/users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}"
+#DELETE_PACKAGE_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}"
+#DELETE_PACKAGE_FOR_USER = API_ROOT + "/users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}"
 
 LIST_PACKAGE_VERSIONS_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}/versions"
 LIST_PACKAGE_VERSIONS_FOR_USER = API_ROOT + "/users/{username}/packages/{package_type}/{package_name}/versions"
 
-DELETE_PACKAGE_VERSION_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}/versions/{package_version_id}"
-DELETE_PACKAGE_VERSION_FOR_USER = API_ROOT + "/users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}"
+DELETE_PACKAGE_VERSION_FOR_ORG = LIST_PACKAGE_VERSIONS_FOR_ORG + "/{package_version_id}"
+DELETE_PACKAGE_VERSION_FOR_USER = LIST_PACKAGE_VERSIONS_FOR_USER + "/{package_version_id}"
 
 PAGING_ARGS = "?per_page={per_page}&page={page}"
 
@@ -88,6 +88,7 @@ def _findRootIndex(jsonpath: jsonpath_ng.Child | jsonpath_ng.Index | jsonpath_ng
         else:
             return _findRootIndex(jsonpath.left)
 
+    raise Exception("Attempt to find root list index, found nothing.")
 
 
 def _includeFilter(itemList: list[dict],
@@ -101,8 +102,6 @@ def _includeFilter(itemList: list[dict],
 
     includePath = "[*]." + include[0]
     includeRegex = include[1]
-
-    summary["include_filter"] = f"'{includePath}', '{includeRegex}'"
 
     # Item Path Matcher, and it's matching regex value matcher
     fieldPathExpr = jsonpath_ng.parse(includePath)
@@ -122,7 +121,7 @@ def _includeFilter(itemList: list[dict],
 
         # If we get a value match, add to the new root list
         if fieldValueRegex.match(fieldValue) is not None:
-            DEBUG_PRINT(f"Regex '{includeRegex} matches Value '{fieldValue}'. Adding to result list and moving to next item")
+            DEBUG_PRINT(f"Regex '{includeRegex} matches Value '{fieldValue}'. Adding to result list")
             rootIndex = _findRootIndex(fieldPath)
             newItemDict[rootIndex] = itemList[rootIndex]
 
@@ -140,8 +139,6 @@ def _excludeFilter(itemList: list[dict],
     assert len(exclude) == 2, "Exclude Filter must have 2 values.  (jsonpath, regex)"
     excludePath = "[*]." + exclude[0]
     excludeRegex = exclude[1]
-
-    summary["exclude_filter"] = f"'{excludePath}', '{excludeRegex}'"
 
     # Item Path Matcher, and it's matching regex value matcher
     fieldPathExpr = jsonpath_ng.parse(excludePath)
@@ -181,7 +178,6 @@ def _sortBy(itemList: list[dict],
     """
     Run the sort by on the provided list
     """
-    summary["sort_by"] = f"'{sortBy}', reverse='{sortReverse}'"
 
     fieldPathExpr = jsonpath_ng.parse(sortBy)
 
@@ -235,7 +231,7 @@ def _filterAndSortListResponseJson(itemList: list[dict],
 def _pagedDataFetch(ghtoken: str,
                     urlWithoutPageParameter: str,
                     totalFetchLimit: int,
-                    summary: dict) -> tuple[dict|list[dict], dict]:
+                    summary: dict) -> tuple[list, dict]:
     """
     given a PAT token, and a URL, without the 2 paging parameters appended,
     attempt to load all of the data from the URL, up to our max result limit
@@ -246,14 +242,8 @@ def _pagedDataFetch(ghtoken: str,
     DEBUG_PRINT(urlWithoutPageParameter)
     DEBUG_PRINT(f"limit: {totalFetchLimit}")
 
-    # A none limit, is the same as a -1
-    totalFetchLimit = totalFetchLimit or -1
-
-    result: Optional[dict|list] = None
+    result = []
     page = 1
-    perPage = 100
-
-    summary["total_fetch_limit"] = totalFetchLimit
 
     while page > 0:
 
@@ -262,11 +252,6 @@ def _pagedDataFetch(ghtoken: str,
 
         # Set the page size.  We'll keep adjusting it down to fit the desired result. but 100 is the GH imposed max
         if totalFetchLimit > 0:
-            perPage = totalFetchLimit - (len(result) if result is not None else 0)
-
-            # If we have reached our fetch limit, break
-            if perPage <= 0:
-                break
 
             pageArgs = PAGING_ARGS.format(per_page=GITHUB_PER_PAGE_LIMIT, page=page)
             url = url + pageArgs
@@ -274,25 +259,18 @@ def _pagedDataFetch(ghtoken: str,
         DEBUG_PRINT(url)
         response = requests.get(url, headers=_generateRerquestHeaders(ghtoken))
         response.raise_for_status()
-        fetched = response.json()
+        fetched: list = response.json()
 
-        assert type(fetched) is list or type(fetched) is dict, f"Fetched Content must be a list, or object/dict. Received {fetched.__class__}"
+        assert type(fetched) is list, f"Fetched Content must be a list. Received {fetched.__class__}"
 
-        fetchCount = len(fetched) if type(fetched) is list else 1
+        fetchCount = len(fetched)
         DEBUG_PRINT(f"Fetched {fetchCount} total items")
 
         # Add to our return list
-        if result is None:
-            result = fetched
-        elif type(result) is list:
-            result = result + fetched
-        elif type(result) is dict:  # Shouldn't happen, but.. lets keep this here for ?? completeness. non-lists should not be paged.
-            result = result | fetched
-        else:
-            raise Exception(f"Unknown result type [{result.__class__}]")
+        result = result + fetched
 
         # Stop if there are no more items to fetch. Or if we have a -1 limit for a single fetch
-        if totalFetchLimit < 0 or type(fetched) is dict or len(fetched) == 0 or len(fetched) < GITHUB_PER_PAGE_LIMIT:
+        if totalFetchLimit < 0 or len(fetched) == 0 or len(fetched) < GITHUB_PER_PAGE_LIMIT:
             break
 
         # Next Page
@@ -305,7 +283,8 @@ def _pagedDataFetch(ghtoken: str,
     return result, summary
 
 
-def _listPackages(ghtoken: str,
+def _listPackages(summary: dict,
+                  ghtoken: str,
                   org: Optional[str],
                   user: Optional[str],
                   packageType: str,
@@ -313,8 +292,7 @@ def _listPackages(ghtoken: str,
                   include: Optional[tuple[str, str]],
                   exclude: Optional[tuple[str, str]],
                   sortBy: Optional[str],
-                  sortReverse: Optional[bool],
-                  summarize: bool):
+                  sortReverse: Optional[bool]) -> tuple[list[dict], dict]:
     """
     Get the list of packages, and return the json response
     """
@@ -326,23 +304,15 @@ def _listPackages(ghtoken: str,
         url = LIST_PACKAGES_FOR_USER.format(user=user, package_type=packageType)
     assert url is not None, "Failed to generate a valid API url"
 
-    summary = {
-        "org": org,
-        "user": user,
-        "package_type": packageType,
-    }
-
     packageList, summary = _pagedDataFetch(ghtoken, url, fetchLimit, summary)
-    assert type(packageList) is list[dict]
+    assert type(packageList) is list
     packageList, summary = _filterAndSortListResponseJson(itemList=packageList, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
 
-    if summarize:
-        INFO_PRINT(json.dumps(summary, indent=4))
-    else:
-        INFO_PRINT(json.dumps(packageList, indent=4))
+    return packageList, summary
 
 
-def _listPackageVersions(ghtoken: str,
+def _listPackageVersions(summary: dict,
+                         ghtoken: str,
                          org: Optional[str],
                          user: Optional[str],
                          packageType: str,
@@ -351,8 +321,7 @@ def _listPackageVersions(ghtoken: str,
                          include: Optional[tuple[str, str]],
                          exclude: Optional[tuple[str, str]],
                          sortBy: Optional[str],
-                         sortReverse: Optional[bool],
-                         summarize: bool):
+                         sortReverse: Optional[bool]) -> tuple[list[dict], dict]:
     """
     Get the list of package versions for the specific package
     """
@@ -365,22 +334,60 @@ def _listPackageVersions(ghtoken: str,
         url = LIST_PACKAGE_VERSIONS_FOR_USER.format(user=user, package_type=packageType, package_name=packageName)
     assert url is not None, "Failed to generate a valid API url"
 
-    summary = {
-        "org": org,
-        "user": user,
-        "package_type": packageType,
-        "package_name": packageName
-    }
-
     versionList, summary = _pagedDataFetch(ghtoken, url, fetchLimit, summary)
     assert type(versionList) is list, f"fetched data returned an unexpected type [{type(versionList)}]"
     versionList, summary = _filterAndSortListResponseJson(itemList=versionList, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
 
-    if summarize:
-        INFO_PRINT(json.dumps(summary, indent=4))
-    else:
-        INFO_PRINT(json.dumps(versionList, indent=4))
+    return versionList, summary
 
+def _deletePackageVersions(summary: dict,
+                           itemList: list[dict],
+                           ghtoken: str,
+                           org: Optional[str],
+                           user: Optional[str],
+                           packageType: str,
+                           packageName: str,
+                           dryrun: bool) -> tuple[list[dict], dict]:
+    """
+    Delete the packages identified by the provided item list.
+    """
+
+    assert bool(org) != bool(user)
+    url = None
+
+    INFO_PRINT(f"Deleting {len(itemList)} package version(s)")
+
+    deleteCount = 0
+    for index, item in enumerate(itemList):
+        id = item["id"]
+        if id is not None:
+            deleteCount += 1
+            INFO_PRINT(f"Deleting [{index+1}/{len(itemList)}] - id:{id}")
+
+            if org:
+                url = DELETE_PACKAGE_VERSION_FOR_ORG.format(org=org, package_type=packageType, package_name=packageName, package_version_id=id)
+            if user:
+                url = DELETE_PACKAGE_VERSION_FOR_USER.format(user=user, package_type=packageType, package_name=packageName, package_version_id=id)
+
+            assert url is not None, "Failed to generate a valid API url"
+
+            DEBUG_PRINT(url)
+            if not dryrun:
+                response = requests.delete(url, headers=_generateRerquestHeaders(ghtoken))
+                response.raise_for_status()
+                if response.status_code == 204:
+                    INFO_PRINT("Ok")
+                else:
+                    INFO_PRINT(f"Fail [{response.status_code}]")
+            else:
+                INFO_PRINT("Ok[dryrun]")
+
+        else:
+            INFO_PRINT(f"Skipping {index+1} of {len(itemList)} id not found")
+
+    summary['deleted'] = len(itemList)
+
+    return itemList, summary
 
 # ***************************************
 # MAIN
@@ -418,7 +425,8 @@ if __name__ == '__main__':
                         dest='package_type',
                         type=str,
                         required=True,
-                        help='One of the list of known github package types. eg "container"')
+                        choices=["npm", "maven", "rubygems", "docker", "nuget", "container"],
+                        help='One of the list of known github package types. eg "container, npm, docker..."')
     parser.add_argument('--package_name',
                         dest='package_name',
                         type=str,
@@ -434,7 +442,6 @@ if __name__ == '__main__':
                         required=False,
                         default=1000,
                         type=int,
-                        choices=range(10,999999),
                         help="Fetching from the GH API is limited to 1000 records at a time.  Increase this with caution.")
     parser.add_argument('--include',
                         dest='include',
@@ -467,9 +474,10 @@ if __name__ == '__main__':
                         help="Don't output the raw json data, instead just summarize the actions")
     parser.add_argument('--dryrun',
                         dest='dryrun',
-                        action='store_true',
+                        type=str,
                         required=False,
-                        default=True,
+                        default=str(True).lower(),
+                        choices=[str(True).lower(), str(False).lower()],
                         help='Delete operations can be dangerous. By default, we dryrun/pretend to do the actual operations.  Set this to False to run any Update/Delete operations.')
     parser.add_argument('--debug',
                         dest='debug',
@@ -486,29 +494,56 @@ if __name__ == '__main__':
     action: ACTION = ACTION(args.action)
     assert action is not None, "Unable to determine requested action from [{args.action}]"
 
+    assert args.fetch_limit > 10 and args.fetch_limit < 999999, "--fetch_limit must be between 10 and 999999"
+
+    summary = vars(args).copy()
+    summary['ghtoken'] = "***"
+    summary = {"args": summary }
+
+    printSummary = args.summary
+    printResult = not printSummary
 
     if action == ACTION.LIST_PACKAGES:
-        _listPackages(ghtoken=args.ghtoken,
-                      org=args.org,
-                      user=args.user,
-                      packageType=args.package_type,
-                      fetchLimit=args.fetch_limit,
-                      include=args.include,
-                      exclude=args.exclude,
-                      sortBy=args.sort_by,
-                      sortReverse=bool(args.reverse),
-                      summarize=args.summary)
+        result, summary = _listPackages(summary=summary,
+                                        ghtoken=args.ghtoken,
+                                        org=args.org,
+                                        user=args.user,
+                                        packageType=args.package_type,
+                                        fetchLimit=args.fetch_limit,
+                                        include=args.include,
+                                        exclude=args.exclude,
+                                        sortBy=args.sort_by,
+                                        sortReverse=bool(args.reverse))
 
-    elif action == ACTION.LIST_PACKAGE_VERSIONS:
-        assert args.package_name, f"--package_name is required with --action {ACTION.LIST_PACKAGE_VERSIONS}"
-        _listPackageVersions(ghtoken=args.ghtoken,
-                             org=args.org,
-                             user=args.user,
-                             packageType=args.package_type,
-                             fetchLimit=args.fetch_limit,
-                             packageName=args.package_name,
-                             include=args.include,
-                             exclude=args.exclude,
-                             sortBy=args.sort_by,
-                             sortReverse=bool(args.reverse),
-                             summarize=args.summary)
+    if action in [ACTION.LIST_PACKAGE_VERSIONS, ACTION.DELETE_PACKAGE_VERSIONS]:
+        assert args.package_name, f"--package_name is required with --action {args.package_name}"
+        result, summary = _listPackageVersions(summary=summary,
+                                               ghtoken=args.ghtoken,
+                                               org=args.org,
+                                               user=args.user,
+                                               packageType=args.package_type,
+                                               packageName=args.package_name,
+                                               fetchLimit=args.fetch_limit,
+                                               include=args.include,
+                                               exclude=args.exclude,
+                                               sortBy=args.sort_by,
+                                               sortReverse=bool(args.reverse))
+
+    if action == ACTION.DELETE_PACKAGE_VERSIONS:
+        assert result is not None and type(result) is list
+        printSummary = True
+        printResult = False
+        result, summary = _deletePackageVersions(summary=summary,
+                                                 itemList=result,
+                                                 ghtoken=args.ghtoken,
+                                                 org=args.org,
+                                                 user=args.user,
+                                                 packageType=args.package_type,
+                                                 packageName=args.package_name,
+                                                 dryrun="true" in str(args.dryrun).lower())
+
+    if printSummary:
+        INFO_PRINT(json.dumps(summary, indent=4))
+
+    if printResult:
+        INFO_PRINT(json.dumps(result, indent=4))

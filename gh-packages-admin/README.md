@@ -1,3 +1,118 @@
+
+# The GitHub Action
+Each command line parameter is provided by the action.   There is a direct 1:1 mapping of each.
+
+
+## Order of Operations
+1. fetch all records in default order from GitHub.
+2. stop fetch once the optional `--fetch_limit` is reached.
+3. apply the `--include` filter.
+4. apply the `--exclude` filter.
+5. apply the `--sort` and `--reverse` operation.
+6. excute the operation on the final list
+
+# Common Tasks
+
+## Report on packages with a given tag format
+Use a `--include` filter matching your tag.  Include the `--summary` flag to create a simple json output.  For example, if you want to report on all package versions with `-latest` at the end of any tags. Such as tags with `develop-latest` and `v1-latest`.
+### CLI
+```sh
+pipenv run ghpkadmin --action listPackageVersions --ghtoken <token> --org <your org> --package_type container --package_name <name> --exclude "metadata.container.tags[*]" ".*-latest" --summary
+```
+### Action
+```yaml
+- name: Delete Packages without Tags
+    uses: shaneapowell/gh-packages-admin@v1
+    with:
+      action: listPackageVersions
+      ghtoken: <token>
+      org: <your org>
+      page_type: container
+      package_name: <name>
+      include:
+        - "metadata.contaienr.tags[*]"
+        - ".*-latest"
+      summary: true
+```
+### Docker
+```sh
+pipenv run ghpkadmin --action listPackageVersions --ghtoken <token> --org <your org> --package_type container --package_name <name> --exclude "metadata.container.tags[*]" ".*-latest" --summary
+```
+
+## Delete all container packages without a tag
+Use a `--exclude` filter matching any that include any value in the tags.
+- `"metadata.container.tags[*]"` -> Finds the values of all tags
+- '".*"' -> Matches to any content within any tag.
+
+### CLI
+```sh
+pipenv run ghpkadmin --action deletePackageVersions --ghtoken <token> --org <your org> --package_type container --package_name <name> --exclude "metadata.container.tags[*]" ".*"
+```
+### Action
+```yaml
+- name: Delete Packages without Tags
+    uses: shaneapowell/gh-packages-admin@v1
+    with:
+      action: deletePackageVersions
+      ghtoken: <token>
+      org: <your org>
+      page_type: container
+      package_name: <name>
+      exclude:
+        - "metadata.contaienr.tags[*]"
+        - ".*"
+```
+
+### Docker
+```sh
+docker container run -it --rm gh-packages-admin  --action deletePackageVersions --ghtoken <token> --org <your org> --package_type container --package_name <name> --exclude "metadata.container.tags[*]" ".*"
+```
+
+## Keep only the most recent 5 containers with specific format tag.
+- Use the `--include` filter to find only the containes you are interested in.
+- Lets also `--exclude` any tags we find with `-latest` in the text.
+- Sort the result by either `created_at` or `updated_at` timestamps in reverse order **youngest at the top**.
+- Slice the result to skip the first 5 to the end
+### CLI
+```sh
+pipenv run ghpkadmin --action deletePackageVersions --ghtoken <token> --org <your org> --package_type container --package_name <name> --include "metadata.container.tags[*]" "DEVELOP-.*" --sort "updated_at" --reverse --slice 5 none
+```
+### Action
+```yaml
+- name: Delete all but the most recent packages for a tag.
+    uses: shaneapowell/gh-packages-admin@v1
+    with:
+      action: deletePackageVersions
+      ghtoken: <token>
+      org: <your org>
+      page_type: container
+      package_name: <name>
+      include:
+        - "metadata.contaienr.tags[*]"
+        - "DEVELOP-.*"
+      exclude:
+        - "metadata.contaienr.tags[*]"
+        - ".*-latest"
+      sort: "upated_at"
+      reverse: true
+      slice:
+        - 5
+        - none
+```
+
+
+# FAQ
+
+## None of my delete operations actually delete anything?
+By default the `--dryrun` flag is set to `True`.  You MUST explicitly turn it off with
+```--dryrun false```
+
+## I get a 404 error when I try to delete any package versions?
+99% of the time, this is a permissions issue. Ensure teh user account tied to your github token, has `admin` rights on the package in question.
+
+
+# Notes
+
 A work in progress.
 A single action with various admin functions for the github packages.
 

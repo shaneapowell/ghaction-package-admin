@@ -104,8 +104,15 @@ def _includeFilter(itemList: list[dict],
     includeRegex = include[1]
 
     # Item Path Matcher, and it's matching regex value matcher
-    fieldPathExpr = jsonpath_ng.parse(includePath)
-    fieldValueRegex = re.compile(includeRegex)
+    try:
+        fieldPathExpr = jsonpath_ng.parse(includePath)
+    except Exception as e:
+        raise Exception(f"Malformed json path in include filter '{includePath}'. See above exception.")
+
+    try:
+        fieldValueRegex = re.compile(includeRegex)
+    except Exception as e:
+        raise Exception(f"Malformed regex in include filter '{includeRegex}'. See above exception.")
 
     # Needs to be a OrderedDict by rootIndex, so we don't duplicate
     newItemDict: OrderedDict[int, dict] = OrderedDict()
@@ -141,8 +148,15 @@ def _excludeFilter(itemList: list[dict],
     excludeRegex = exclude[1]
 
     # Item Path Matcher, and it's matching regex value matcher
-    fieldPathExpr = jsonpath_ng.parse(excludePath)
-    fieldValueExpr = re.compile(excludeRegex)
+    try:
+        fieldPathExpr = jsonpath_ng.parse(excludePath)
+    except Exception as e:
+        raise Exception(f"Malformed json path in exclude filter {excludePath}. See above exception.")
+
+    try:
+        fieldValueRegex = re.compile(excludeRegex)
+    except Exception as e:
+        raise Exception(f"Malformed regex in include filter {excludeRegex}. See above exception.")
 
     newItemList = itemList.copy()
     delItemIndexList: list[int] = []
@@ -156,7 +170,7 @@ def _excludeFilter(itemList: list[dict],
         fieldValue = str(fieldPath.value)
 
         # If we get a value match, add to the delete index list. Only if it's not already there
-        if fieldValueExpr.match(fieldValue):
+        if fieldValueRegex.match(fieldValue):
             DEBUG_PRINT(f"Regex '{excludeRegex} matches Value '{fieldValue}'. Removing from result list")
             rootIndex = _findRootIndex(fieldPath)
             if rootIndex not in delItemIndexList:
@@ -204,6 +218,7 @@ def _filterAndSortListResponseJson(itemList: list[dict],
                                    exclude: Optional[tuple[str, str]],  # path, regex
                                    sortBy: Optional[str],
                                    sortReverse: Optional[bool],
+                                   slice: Optional[tuple[int,int]],
                                    summary: dict) -> tuple[list[dict], dict]:
     """
     Take the raw string json response. This response should contain a root list of items.
@@ -225,6 +240,11 @@ def _filterAndSortListResponseJson(itemList: list[dict],
         itemList, summary = _sortBy(itemList=itemList, sortBy=sortBy, sortReverse=bool(sortReverse), summary=summary)
 
     summary["items_found"] = len(itemList)
+
+    if slice:
+        itemList = itemList[slice[0]:slice[1]]
+        summary["sliced"] = len(itemList)
+
     return itemList, summary
 
 
@@ -292,7 +312,8 @@ def _listPackages(summary: dict,
                   include: Optional[tuple[str, str]],
                   exclude: Optional[tuple[str, str]],
                   sortBy: Optional[str],
-                  sortReverse: Optional[bool]) -> tuple[list[dict], dict]:
+                  sortReverse: Optional[bool],
+                  slice: Optional[tuple[int,int]]) -> tuple[list[dict], dict]:
     """
     Get the list of packages, and return the json response
     """
@@ -306,7 +327,7 @@ def _listPackages(summary: dict,
 
     packageList, summary = _pagedDataFetch(ghtoken, url, fetchLimit, summary)
     assert type(packageList) is list
-    packageList, summary = _filterAndSortListResponseJson(itemList=packageList, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
+    packageList, summary = _filterAndSortListResponseJson(itemList=packageList, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, slice=slice, summary=summary)
 
     return packageList, summary
 
@@ -321,7 +342,8 @@ def _listPackageVersions(summary: dict,
                          include: Optional[tuple[str, str]],
                          exclude: Optional[tuple[str, str]],
                          sortBy: Optional[str],
-                         sortReverse: Optional[bool]) -> tuple[list[dict], dict]:
+                         sortReverse: Optional[bool],
+                         slice: Optional[tuple[int,int]]) -> tuple[list[dict], dict]:
     """
     Get the list of package versions for the specific package
     """
@@ -336,7 +358,7 @@ def _listPackageVersions(summary: dict,
 
     versionList, summary = _pagedDataFetch(ghtoken, url, fetchLimit, summary)
     assert type(versionList) is list, f"fetched data returned an unexpected type [{type(versionList)}]"
-    versionList, summary = _filterAndSortListResponseJson(itemList=versionList, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
+    versionList, summary = _filterAndSortListResponseJson(itemList=versionList, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, slice=slice, summary=summary)
 
     return versionList, summary
 
@@ -466,6 +488,13 @@ if __name__ == '__main__':
                         required=False,
                         default=False,
                         help="Reverse the Sort by. Ignored with no --sort_by provided")
+    parser.add_argument('--slice',
+                        dest='slice',
+                        required=False,
+                        default=None,
+                        type=str,
+                        nargs=2,
+                        help="After include, exclude and sort is done, performa slice operation on the list.")
     parser.add_argument('--summary',
                         dest='summary',
                         action='store_true',
@@ -488,6 +517,7 @@ if __name__ == '__main__':
 
 
     args = args = parser.parse_args()
+    summary = vars(args).copy()
 
     _debug = args.debug
 
@@ -496,7 +526,28 @@ if __name__ == '__main__':
 
     assert args.fetch_limit > 10 and args.fetch_limit < 999999, "--fetch_limit must be between 10 and 999999"
 
-    summary = vars(args).copy()
+    sliceArgs = None
+    if args.slice:
+        sliceStart = None
+        sliceEnd = None
+        if "none" in args.slice[0].lower():
+            sliceStart = None
+        else:
+            try:
+                sliceStart = int(args.slice[0])
+            except:
+                raise Exception("Slice Start must be a number or 'None'")
+        if "none" in args.slice[1].lower():
+            sliceEnd = None
+        else:
+            try:
+                sliceEnd = int(args.slice[1])
+            except:
+                raise Exception("Slice End must be a number or 'None'")
+        sliceArgs = (sliceStart, sliceEnd)
+        summary["slice"] = sliceArgs
+
+
     summary['ghtoken'] = "***"
     summary = {"args": summary }
 
@@ -513,7 +564,8 @@ if __name__ == '__main__':
                                         include=args.include,
                                         exclude=args.exclude,
                                         sortBy=args.sort_by,
-                                        sortReverse=bool(args.reverse))
+                                        sortReverse=bool(args.reverse),
+                                        slice=sliceArgs)
 
     if action in [ACTION.LIST_PACKAGE_VERSIONS, ACTION.DELETE_PACKAGE_VERSIONS]:
         assert args.package_name, f"--package_name is required with --action {args.package_name}"
@@ -527,7 +579,8 @@ if __name__ == '__main__':
                                                include=args.include,
                                                exclude=args.exclude,
                                                sortBy=args.sort_by,
-                                               sortReverse=bool(args.reverse))
+                                               sortReverse=bool(args.reverse),
+                                               slice=sliceArgs)
 
     if action == ACTION.DELETE_PACKAGE_VERSIONS:
         assert result is not None and type(result) is list

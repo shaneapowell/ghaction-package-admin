@@ -94,7 +94,7 @@ jobs:
         file: Dockerfile
         pull: true
         tags: |
-          ghcr.io/shaneapowell/${{ input.sub_project_name}}:${{ github.workflow }}
+          ghcr.io/shaneapowell/${{ inputs.sub_project_name}}:${{ github.workflow }}
         secrets: GIT_AUTH_TOKEN=${{ github.token }}
         no-cache: false
         push: true

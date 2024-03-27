@@ -57,19 +57,19 @@ jobs:
 
     - name: Install/Update package dependencies
       run: pipenv sync
-        working-directory: ${{ inputs.sub_project_name }}
+      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Linter
       run: pipenv run linter
-        working-directory: ${{ inputs.sub_project_name }}
+      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Type Checks
       run: pipenv run typechecker
-        working-directory: ${{ inputs.sub_project_name }}
+      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Unit Tests
       run: pipenv run tests
-        working-directory: ${{ inputs.sub_project_name }}
+      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Push Cache
       if : ${{ inputs.push_cache == true }}

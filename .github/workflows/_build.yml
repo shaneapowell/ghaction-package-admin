@@ -92,10 +92,9 @@ jobs:
     - name: Build and push :${{ github.workflow }}-${{ github.run_number }}
       if: ${{ inputs.create_docker_image == true }}
       uses: docker/build-push-action@v4
-      working-directory: ${{ inputs.sub_project_name }}
       with:
-        context: .
-        file: Dockerfile
+        context: ${{ inputs.sub_project_name }}
+        file: ${{ inputs.sub_project_name }}/Dockerfile
         pull: true
         tags: |
           ghcr.io/shaneapowell/${{ inputs.sub_project_name}}:${{ github.workflow }}

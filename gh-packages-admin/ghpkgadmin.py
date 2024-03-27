@@ -6,17 +6,22 @@ A simple python script that can run a set of GitHub Package Admin functions.
 """
 import sys
 import argparse
-from typing import Optional
+from typing import Optional, Any
 from enum import Enum
 import requests
 import json
 import jsonpath_ng  # type: ignore
 import re
+from collections import OrderedDict
 
 KEY_ORG = "org"
 KEY_USER = "user"
 
 API_ROOT = "https://api.github.com"
+
+# We'll impose a paging limit of 50. GitHub already imposes a limit of 100. And a default of 30
+GITHUB_PER_PAGE_LIMIT = 50
+
 
 LIST_PACKAGES_FOR_ORG = API_ROOT + "/orgs/{org}/packages?package_type={package_type}"
 LIST_PACKAGES_FOR_USER = API_ROOT + "/users/{username}/packages?package_type={package_type}"
@@ -60,59 +65,80 @@ def _generateRerquestHeaders(ghtoken: str) -> dict:
         "X-GitHub-Api-Version": "2022-11-28"
     }
 
+def _findRootIndex(jsonpath: jsonpath_ng.Child | jsonpath_ng.Index | jsonpath_ng.DatumInContext) -> int:
+    """
+    Given a json path, or path context. find the root index.
+    If the root is a list, it'll be the index in that list of this items.
+    if the root is a dict/object, return None
+    This function is recursive.
+    """
 
-def _includeFilter(itemList: list[str],
+    # If we get a datum, pass it's full path recursively into this function
+    if type(jsonpath) is jsonpath_ng.DatumInContext:
+        return _findRootIndex(jsonpath.full_path)
+
+    # If the child is an Index, we're at the root
+    if type(jsonpath) is jsonpath_ng.Index:
+        return jsonpath.index
+
+    # If this is a child, navigate left and run this function recursively.
+    if type(jsonpath) is jsonpath_ng.Child:
+        if jsonpath.left is None:
+            raise Exception("Attempt to find root list index, in a non list object")
+        else:
+            return _findRootIndex(jsonpath.left)
+
+
+
+def _includeFilter(itemList: list[dict],
                    include: tuple[str, str],
-                   summary: dict) -> tuple[list[str], dict]:
+                   summary: dict) -> tuple[list[dict], dict]:
     """
     Returns a NEW list of filtered items.
     And the origianl summary dict altered
     """
     assert len(include) == 2, "Include Filter must have 2 values.  (jsonpath, regex)"
-    includePath = include[0]
+
+    includePath = "[*]." + include[0]
     includeRegex = include[1]
 
     summary["include_filter"] = f"'{includePath}', '{includeRegex}'"
 
     # Item Path Matcher, and it's matching regex value matcher
     fieldPathExpr = jsonpath_ng.parse(includePath)
-    fieldValueExpr = re.compile(includeRegex)
+    fieldValueRegex = re.compile(includeRegex)
 
-    newItemList = []
+    # Needs to be a OrderedDict by rootIndex, so we don't duplicate
+    newItemDict: OrderedDict[int, dict] = OrderedDict()
 
-    # for each element in the root result model list. Look for a item path/value match
-    for item in itemList:
+    # Find all/any path matches into this list
+    fieldPathList = fieldPathExpr.find(itemList)
+    DEBUG_PRINT(f"Found {len(fieldPathList)} value(s) at path '{fieldPathExpr}'")
 
-        DEBUG_PRINT(f"- path: '{fieldPathExpr}'")
-        DEBUG_PRINT(f"Searching: {item}")
+    # Check each value against the provided value regex
+    for fieldPath in fieldPathList:
 
-        # Find all/any path matches into this item
-        fieldPathList = fieldPathExpr.find(item)
-        DEBUG_PRINT(f"Found {len(fieldPathList)} value(s) at path '{fieldPathExpr}'")
-        for fieldPath in fieldPathList:
-            # Grab the value at this path. We go to strings on all, since we're going to regex anyway
-            fieldValue = str(fieldPath.value)
+        fieldValue = str(fieldPath.value)
 
-            # If we get a value match, add to the new root list, and break this loop
-            if fieldValueExpr.match(fieldValue) is not None:
-                DEBUG_PRINT(f"Regex '{includeRegex} matches Value '{fieldValue}'. Adding to result list and moving to next item")
-                newItemList.append(item)
-                DEBUG_PRINT(f'Filter Result List Size [{len(newItemList)}]')
-                break
+        # If we get a value match, add to the new root list
+        if fieldValueRegex.match(fieldValue) is not None:
+            DEBUG_PRINT(f"Regex '{includeRegex} matches Value '{fieldValue}'. Adding to result list and moving to next item")
+            rootIndex = _findRootIndex(fieldPath)
+            newItemDict[rootIndex] = itemList[rootIndex]
 
-    DEBUG_PRINT(f"Include Filter Result {len(newItemList)}")
-    summary["include_filter_result"] = len(newItemList)
-    return newItemList, summary
+    DEBUG_PRINT(f"Include Filter Result {len(newItemDict)}")
+    summary["include_filter_result"] = len(newItemDict)
+    return list(newItemDict.values()), summary
 
 
-def _excludeFilter(itemList: list[str],
+def _excludeFilter(itemList: list[dict],
                    exclude: tuple[str, str],
-                   summary: dict) -> tuple[list[str], dict]:
+                   summary: dict) -> tuple[list[dict], dict]:
     """
     Run the exclude filter on the item list
     """
     assert len(exclude) == 2, "Exclude Filter must have 2 values.  (jsonpath, regex)"
-    excludePath = exclude[0]
+    excludePath = "[*]." + exclude[0]
     excludeRegex = exclude[1]
 
     summary["exclude_filter"] = f"'{excludePath}', '{excludeRegex}'"
@@ -121,40 +147,37 @@ def _excludeFilter(itemList: list[str],
     fieldPathExpr = jsonpath_ng.parse(excludePath)
     fieldValueExpr = re.compile(excludeRegex)
 
-    newItemList = []
+    newItemList = itemList.copy()
+    delItemIndexList: list[int] = []
 
-    # for each element in the root result model list. Look for a item path/value match
-    for item in itemList:
 
-        DEBUG_PRINT("-")
-        DEBUG_PRINT(f"Searching: {item}")
+    # Find all/any path matches into this item
+    fieldPathList = fieldPathExpr.find(newItemList)
+    DEBUG_PRINT(f"Found {len(fieldPathList)} values at path'{fieldPathExpr}'")
+    for fieldPath in fieldPathList:
 
-        # Find all/any path matches into this item
-        fieldPathList = fieldPathExpr.find(item)
-        DEBUG_PRINT(f"Found {len(fieldPathList)} values at path'{fieldPathExpr}'")
-        if len(fieldPathList) == 0:
-            newItemList.append(item)
-        else:
-            for fieldPath in fieldPathList:
-                # Grab the value at this path. We go to strings on all, since we're going to regex anyway
-                fieldValue = str(fieldPath.value)
+        fieldValue = str(fieldPath.value)
 
-                # If we DON'T get a value match, add to the new root list, and break this loop
-                if fieldValueExpr.match(fieldValue) is None:
-                    DEBUG_PRINT(f"Regex '{excludeRegex} does NOT matche Value '{fieldValue}'. Adding to result list and moving to next item")
-                    newItemList.append(item)
-                    DEBUG_PRINT(f'Filter Result List Size [{len(newItemList)}]')
-                    break
+        # If we get a value match, add to the delete index list. Only if it's not already there
+        if fieldValueExpr.match(fieldValue):
+            DEBUG_PRINT(f"Regex '{excludeRegex} matches Value '{fieldValue}'. Removing from result list")
+            rootIndex = _findRootIndex(fieldPath)
+            if rootIndex not in delItemIndexList:
+                delItemIndexList.append(rootIndex)
+
+    # Delete our found indexes. In reverse so we don't affect the index lookup in realtime
+    for i in sorted(delItemIndexList, reverse=True):
+        del newItemList[i]
 
     DEBUG_PRINT(f"Exclude Filter Result {len(newItemList)}")
     summary["exclude_filter_result"] = len(newItemList)
     return newItemList, summary
 
 
-def _sortBy(itemList: list[str],
+def _sortBy(itemList: list[dict],
             sortBy: str,
             sortReverse: bool,
-            summary: dict) -> tuple[list[str], dict]:
+            summary: dict) -> tuple[list[dict], dict]:
     """
     Run the sort by on the provided list
     """
@@ -162,7 +185,7 @@ def _sortBy(itemList: list[str],
 
     fieldPathExpr = jsonpath_ng.parse(sortBy)
 
-    newItemList: list[tuple[str, str]] = []  # A list of tuples. [0] is the sorting value. [1] is the item
+    newItemList: list[tuple[Any, dict]] = []  # A list of tuples. [0] is the sorting value. [1] is the item
 
     # Build a list of tuples, with the desired field value in the [0] of the tuple
     for item in itemList:
@@ -180,12 +203,12 @@ def _sortBy(itemList: list[str],
     return resultList, summary
 
 
-def _filterAndSortListResponseJson(itemList: list[str],
+def _filterAndSortListResponseJson(itemList: list[dict],
                                    include: Optional[tuple[str, str]],  # path, regex
                                    exclude: Optional[tuple[str, str]],  # path, regex
                                    sortBy: Optional[str],
                                    sortReverse: Optional[bool],
-                                   summary: dict) -> tuple[list[str], dict]:
+                                   summary: dict) -> tuple[list[dict], dict]:
     """
     Take the raw string json response. This response should contain a root list of items.
     Run the include and exclude filters on it.
@@ -211,48 +234,75 @@ def _filterAndSortListResponseJson(itemList: list[str],
 
 def _pagedDataFetch(ghtoken: str,
                     urlWithoutPageParameter: str,
-                    limit: int,
-                    summary: dict) -> tuple[list[str], dict]:
+                    totalFetchLimit: int,
+                    summary: dict) -> tuple[dict|list[dict], dict]:
     """
     given a PAT token, and a URL, without the 2 paging parameters appended,
     attempt to load all of the data from the URL, up to our max result limit
+    if limit is -1 or None. Just do a 1 off fetch, and return the result.
+    Otherwise, provide a limit.
     """
-    itemList: list[str] = []
+
+    DEBUG_PRINT(urlWithoutPageParameter)
+    DEBUG_PRINT(f"limit: {totalFetchLimit}")
+
+    # A none limit, is the same as a -1
+    totalFetchLimit = totalFetchLimit or -1
+
+    result: Optional[dict|list] = None
     page = 1
     perPage = 100
 
-    listPathExpr = jsonpath_ng.parse("[*]")
+    summary["total_fetch_limit"] = totalFetchLimit
 
-    summary["initialFetchLimit"] = limit
+    while page > 0:
 
-    while len(itemList) < limit:
+        # Where to get the data
+        url = urlWithoutPageParameter
+
         # Set the page size.  We'll keep adjusting it down to fit the desired result. but 100 is the GH imposed max
-        perPage = limit - len(itemList)
-        pageArgs = PAGING_ARGS.format(per_page=perPage, page=page)
+        if totalFetchLimit > 0:
+            perPage = totalFetchLimit - (len(result) if result is not None else 0)
 
-        # Fetch a batch of items
-        url = urlWithoutPageParameter + pageArgs
+            # If we have reached our fetch limit, break
+            if perPage <= 0:
+                break
+
+            pageArgs = PAGING_ARGS.format(per_page=GITHUB_PER_PAGE_LIMIT, page=page)
+            url = url + pageArgs
+
         DEBUG_PRINT(url)
         response = requests.get(url, headers=_generateRerquestHeaders(ghtoken))
         response.raise_for_status()
-        jsonData = response.json()
+        fetched = response.json()
 
-        # Flatten from a DatumInContext into a simple list
-        fetchedItemList = [item.value for item in listPathExpr.find(jsonData)]
+        assert type(fetched) is list or type(fetched) is dict, f"Fetched Content must be a list, or object/dict. Received {fetched.__class__}"
 
-        # Stop if there are no more items to fetch
-        if len(fetchedItemList) == 0:
-            break
+        fetchCount = len(fetched) if type(fetched) is list else 1
+        DEBUG_PRINT(f"Fetched {fetchCount} total items")
 
         # Add to our return list
-        itemList = itemList + fetchedItemList
+        if result is None:
+            result = fetched
+        elif type(result) is list:
+            result = result + fetched
+        elif type(result) is dict:  # Shouldn't happen, but.. lets keep this here for ?? completeness. non-lists should not be paged.
+            result = result | fetched
+        else:
+            raise Exception(f"Unknown result type [{result.__class__}]")
 
+        # Stop if there are no more items to fetch. Or if we have a -1 limit for a single fetch
+        if totalFetchLimit < 0 or type(fetched) is dict or len(fetched) == 0 or len(fetched) < GITHUB_PER_PAGE_LIMIT:
+            break
+
+        # Next Page
         page += 1
 
-        DEBUG_PRINT(f"Fetched {len(itemList)} total items")
-        summary["items_fetched"] = len(itemList)
+    # Trim our result incase we exceed our limit
+    result = result[:totalFetchLimit]
+    summary["items_fetched"] = len(result)
 
-    return itemList, summary
+    return result, summary
 
 
 def _listPackages(ghtoken: str,
@@ -279,10 +329,11 @@ def _listPackages(ghtoken: str,
     summary = {
         "org": org,
         "user": user,
-        "packageType": packageType,
+        "package_type": packageType,
     }
 
     packageList, summary = _pagedDataFetch(ghtoken, url, fetchLimit, summary)
+    assert type(packageList) is list[dict]
     packageList, summary = _filterAndSortListResponseJson(itemList=packageList, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
 
     if summarize:
@@ -317,11 +368,12 @@ def _listPackageVersions(ghtoken: str,
     summary = {
         "org": org,
         "user": user,
-        "packageType": packageType,
-        "packageName": packageName
+        "package_type": packageType,
+        "package_name": packageName
     }
 
     versionList, summary = _pagedDataFetch(ghtoken, url, fetchLimit, summary)
+    assert type(versionList) is list, f"fetched data returned an unexpected type [{type(versionList)}]"
     versionList, summary = _filterAndSortListResponseJson(itemList=versionList, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
 
     if summarize:
@@ -329,6 +381,10 @@ def _listPackageVersions(ghtoken: str,
     else:
         INFO_PRINT(json.dumps(versionList, indent=4))
 
+
+# ***************************************
+# MAIN
+# ***************************************
 
 if __name__ == '__main__':
     """
@@ -378,6 +434,7 @@ if __name__ == '__main__':
                         required=False,
                         default=1000,
                         type=int,
+                        choices=range(10,999999),
                         help="Fetching from the GH API is limited to 1000 records at a time.  Increase this with caution.")
     parser.add_argument('--include',
                         dest='include',

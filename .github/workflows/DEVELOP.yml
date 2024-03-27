@@ -1,0 +1,19 @@
+name: DEVELOP
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ develop ]
+  schedule:
+    # Every Sunday to ensure we always have a fresh build and not rolled off of our expiring cache of packages
+    - cron: 10 1 * * 0
+
+jobs:
+
+  build-develop-gh-packages-admin:
+    uses: ./.github/workflows/_build.yml
+    with:
+      sub_project_name: gh-packages-admin
+      create_docker_image: true
+      push_cache: true
+

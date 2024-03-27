@@ -1,0 +1,105 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      sub_project_name:
+        required: true
+        type: string
+        description: The action sub-package to build
+      create_docker_image:
+        required: false
+        type: boolean
+        default: false
+        description: Build and Push the docker image for this workflow
+      push_cache:
+        required: false
+        type: boolean
+        default: false
+        description: Push the build cache up to GitHub for this build.
+
+jobs:
+
+  assemble-test-push:
+
+    runs-on: [ubuntu-latest]
+
+    defaults:
+      run:
+        shell: sh
+
+    steps:
+
+    - echo: "Building ${{ inputs.sub_project_name }}"
+
+    - uses: actions/checkout@v4
+      with:
+        clean: true
+
+    - name: Setup Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install/Update PIP
+      run: python -m pip install --upgrade pip
+
+    - name: Pull Cache [build-${{ hashFiles('Pipfile.lock') }}]
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ~/.local/share/virtualenvs
+          ~/.cache/pip
+        key: build-${{ hashFiles('Pipfile.lock') }}
+
+    - name: Install pipenv dependency
+      run: pip3 install pipenv
+
+    - name: Install/Update package dependencies
+      run: pipenv sync
+      working-directory: ${{ input.sub_project_name }}
+
+    - name: Linter
+      run: pipenv run linter
+      working-directory: ${{ input.sub_project_name }}
+
+    - name: Type Checks
+      run: pipenv run typechecker
+      working-directory: ${{ input.sub_project_name }}
+
+    - name: Unit Tests
+      run: pipenv run tests
+      working-directory: ${{ input.sub_project_name }}
+
+    - name: Push Cache
+      if : ${{ inputs.push_cache == true }}
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.local/share/virtualenvs
+          ~/.cache/pip
+        key: build-${{ hashFiles('Pipfile.lock') }}
+
+    # Docker Creation or not
+    - name: Log in to the ghcr.io Container registry
+      if: ${{ inputs.create_docker_image == true }}
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push :${{ github.workflow }}-${{ github.run_number }}
+      if: ${{ inputs.create_docker_image == true }}
+      uses: docker/build-push-action@v4
+      working-directory: ${{ input.sub_project_name }}
+      with:
+        context: .
+        file: Dockerfile
+        pull: true
+        tags: |
+          ghcr.io/shaneapowell/${{ input.sub_project_name}}:${{ github.workflow }}
+        secrets: GIT_AUTH_TOKEN=${{ github.token }}
+        no-cache: false
+        push: true
+

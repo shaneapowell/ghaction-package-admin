@@ -27,11 +27,14 @@ jobs:
     defaults:
       run:
         shell: sh
-        working-directory: ${{ inputs.sub_project_name }}
+        #working-directory: ${{ inputs.sub_project_name }}
 
     steps:
 
     - run: echo "Building ${{ inputs.sub_project_name }}"
+    - run: pwd
+    - run: ls -l
+    - run: ls -l ${{ inputs.sub_project_name }}
 
     - uses: actions/checkout@v4
       with:

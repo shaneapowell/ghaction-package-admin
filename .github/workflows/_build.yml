@@ -36,6 +36,12 @@ jobs:
       with:
         clean: true
 
+    - name: Create Cache Key Filename
+      run: echo "LOCK_FILE=${{ inputs.sub_project_name }}/Pipfile.lock" >> $GITHUB_ENV
+
+    - name: Create Cache KeyHash
+      run: echo "CACHE_KEY=build-${{ hashFiles('${{ env.LOCK_FILE }}') }}"
+
     - name: Setup Python 3.11
       uses: actions/setup-python@v5
       with:
@@ -44,13 +50,13 @@ jobs:
     - name: Install/Update PIP
       run: python -m pip install --upgrade pip
 
-    - name: Pull Cache [build-${{ hashFiles('Pipfile.lock') }}]
+    - name: Pull Cache [${{ CACHE_KEY }}]
       uses: actions/cache/restore@v4
       with:
         path: |
           ~/.local/share/virtualenvs
           ~/.cache/pip
-        key: build-${{ hashFiles('Pipfile.lock') }}
+        key: ${{ CACHE_KEY }}
 
     - name: Install pipenv dependency
       run: pip3 install pipenv
@@ -78,7 +84,7 @@ jobs:
         path: |
           ~/.local/share/virtualenvs
           ~/.cache/pip
-        key: build-${{ hashFiles('Pipfile.lock') }}
+        key: ${{ CACHE_KEY }}
 
     # Docker Creation or not
     - name: Log in to the ghcr.io Container registry

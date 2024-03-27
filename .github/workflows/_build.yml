@@ -57,19 +57,19 @@ jobs:
 
     - name: Install/Update package dependencies
       run: pipenv sync
-      working-directory: ${{ input.sub_project_name }}
+      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Linter
       run: pipenv run linter
-      working-directory: ${{ input.sub_project_name }}
+      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Type Checks
       run: pipenv run typechecker
-      working-directory: ${{ input.sub_project_name }}
+      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Unit Tests
       run: pipenv run tests
-      working-directory: ${{ input.sub_project_name }}
+      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Push Cache
       if : ${{ inputs.push_cache == true }}
@@ -92,7 +92,7 @@ jobs:
     - name: Build and push :${{ github.workflow }}-${{ github.run_number }}
       if: ${{ inputs.create_docker_image == true }}
       uses: docker/build-push-action@v4
-      working-directory: ${{ input.sub_project_name }}
+      working-directory: ${{ inputs.sub_project_name }}
       with:
         context: .
         file: Dockerfile

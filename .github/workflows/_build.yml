@@ -30,7 +30,7 @@ jobs:
 
     steps:
 
-    - echo: "Building ${{ inputs.sub_project_name }}"
+    - run: echo "Building ${{ inputs.sub_project_name }}"
 
     - uses: actions/checkout@v4
       with:

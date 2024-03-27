@@ -15,6 +15,7 @@ flake8 = "==6.1.0"
 pytest = "==7.4.4"
 pytest-asyncio = "==0.23.3"
 mypy = "==1.8.0"
+types-requests = "==2.31.0.20240311"
 
 
 # Profilers: # https://realpython.com/python-timer/#finding-bottlenecks-in-your-code-with-profilers
@@ -27,8 +28,8 @@ functiontrace = "*"
 python_version = "3.11"
 
 [scripts]
-linter = "python -m flake8 sim tests"
-typechecker = "python -m mypy main.py sim  --check-untyped-defs"
+linter = "python -m flake8 ghpkgadmin.py tests"
+typechecker = "python -m mypy ghpkgadmin.py --check-untyped-defs"
 tests = "python -m pytest tests"
 test = "python -m pytest -q tests/test_api.py"
 ghpkgadmin = "python ghpkgadmin.py"

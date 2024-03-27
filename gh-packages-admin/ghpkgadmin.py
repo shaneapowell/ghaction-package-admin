@@ -10,7 +10,7 @@ from typing import Optional
 from enum import Enum
 import requests
 import json
-import jsonpath_ng
+import jsonpath_ng  # type: ignore
 import re
 
 KEY_ORG = "org"
@@ -30,8 +30,18 @@ LIST_PACKAGE_VERSIONS_FOR_USER = API_ROOT + "/users/{username}/packages/{package
 DELETE_PACKAGE_VERSION_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}/versions/{package_version_id}"
 DELETE_PACKAGE_VERSION_FOR_USER = API_ROOT + "/users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}"
 
-DEBUG_PRINT = lambda msg: print("DEBUG: "+msg, file=sys.stderr)
-INFO_PRINT = lambda msg: print(msg)
+PAGING_ARGS = "?per_page={per_page}&page={page}"
+
+_debug = True
+
+
+def DEBUG_PRINT(msg):
+    if _debug:
+        print(f"DEBUG: {msg}", file=sys.stderr)
+
+
+def INFO_PRINT(msg):
+    print(msg)
 
 
 class ACTION(str, Enum):
@@ -52,13 +62,13 @@ def _generateRerquestHeaders(ghtoken: str) -> dict:
 
 
 def _includeFilter(itemList: list[str],
-                   include: Optional[tuple[str, str]],
+                   include: tuple[str, str],
                    summary: dict) -> tuple[list[str], dict]:
     """
     Returns a NEW list of filtered items.
     And the origianl summary dict altered
     """
-    assert len(include) == 2, "Include Filter must have 2 values.  (path, regex)"
+    assert len(include) == 2, "Include Filter must have 2 values.  (jsonpath, regex)"
     includePath = include[0]
     includeRegex = include[1]
 
@@ -73,12 +83,12 @@ def _includeFilter(itemList: list[str],
     # for each element in the root result model list. Look for a item path/value match
     for item in itemList:
 
-        DEBUG_PRINT("-")
+        DEBUG_PRINT(f"- path: '{fieldPathExpr}'")
         DEBUG_PRINT(f"Searching: {item}")
 
         # Find all/any path matches into this item
         fieldPathList = fieldPathExpr.find(item)
-        DEBUG_PRINT(f"Found {len(fieldPathList)} values at path'{fieldPathExpr}'")
+        DEBUG_PRINT(f"Found {len(fieldPathList)} value(s) at path '{fieldPathExpr}'")
         for fieldPath in fieldPathList:
             # Grab the value at this path. We go to strings on all, since we're going to regex anyway
             fieldValue = str(fieldPath.value)
@@ -96,12 +106,12 @@ def _includeFilter(itemList: list[str],
 
 
 def _excludeFilter(itemList: list[str],
-                   exclude: Optional[tuple[str, str]],
+                   exclude: tuple[str, str],
                    summary: dict) -> tuple[list[str], dict]:
     """
     Run the exclude filter on the item list
     """
-    assert len(exclude) == 2, "Exclude Filter must have 2 values.  (path, regex)"
+    assert len(exclude) == 2, "Exclude Filter must have 2 values.  (jsonpath, regex)"
     excludePath = exclude[0]
     excludeRegex = exclude[1]
 
@@ -142,9 +152,9 @@ def _excludeFilter(itemList: list[str],
 
 
 def _sortBy(itemList: list[str],
-             sortBy: str,
-             sortReverse: bool,
-             summary: dict) -> tuple[list[str], dict]:
+            sortBy: str,
+            sortReverse: bool,
+            summary: dict) -> tuple[list[str], dict]:
     """
     Run the sort by on the provided list
     """
@@ -152,7 +162,7 @@ def _sortBy(itemList: list[str],
 
     fieldPathExpr = jsonpath_ng.parse(sortBy)
 
-    newItemList = []  # A list of tuples. [0] is the sorting value. [1] is the item
+    newItemList: list[tuple[str, str]] = []  # A list of tuples. [0] is the sorting value. [1] is the item
 
     # Build a list of tuples, with the desired field value in the [0] of the tuple
     for item in itemList:
@@ -160,16 +170,17 @@ def _sortBy(itemList: list[str],
         fieldValues = [item.value for item in fieldPathExpr.find(item)]
         fieldValues.sort(reverse=sortReverse)
         fieldValue = (fieldValues or [None])[0]
-        newItemList.append( (fieldValue, item) )
+        newItemList.append((fieldValue, item))
 
     # Sort pushing Nones to the end
     newItemList.sort(key=lambda x: (x[0] is None, x[0]), reverse=sortReverse)
 
-    newItemList = list(map(lambda x: x[1], newItemList))
-    return newItemList, summary
+    # Now, extract the list of json values that have been sorted by the typle [0]
+    resultList = list(map(lambda x: x[1], newItemList))
+    return resultList, summary
 
 
-def _filterAndSortListResponseJson(jsonData: str,
+def _filterAndSortListResponseJson(itemList: list[str],
                                    include: Optional[tuple[str, str]],  # path, regex
                                    exclude: Optional[tuple[str, str]],  # path, regex
                                    sortBy: Optional[str],
@@ -185,35 +196,75 @@ def _filterAndSortListResponseJson(jsonData: str,
     DEBUG_PRINT(f"exclude filter: {exclude}")
     DEBUG_PRINT(f"sort by: {sortBy}")
 
-    # Main List Matcher. Find each item from the root list point.
-    rootListPathExpr = jsonpath_ng.parse("[*]")
-    rootItemList = [item.value for item in rootListPathExpr.find(jsonData)]  # Flatten from a DatumInContext into a simple list
-    DEBUG_PRINT(f"Contains {len(rootItemList)} total items")
-    summary["initial_items_found"] = len(rootItemList)
-
     if include:
-        rootItemList, summary = _includeFilter(itemList=rootItemList, include=include, summary=summary)
+        itemList, summary = _includeFilter(itemList=itemList, include=include, summary=summary)
 
     if exclude:
-        rootItemList, summary = _excludeFilter(itemList=rootItemList, exclude=exclude, summary=summary)
+        itemList, summary = _excludeFilter(itemList=itemList, exclude=exclude, summary=summary)
 
     if sortBy:
-        rootItemList, summary = _sortBy(itemList=rootItemList, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
+        itemList, summary = _sortBy(itemList=itemList, sortBy=sortBy, sortReverse=bool(sortReverse), summary=summary)
 
-    summary["final_items_found"] = len(rootItemList)
-    return rootItemList, summary
+    summary["items_found"] = len(itemList)
+    return itemList, summary
 
+
+def _pagedDataFetch(ghtoken: str,
+                    urlWithoutPageParameter: str,
+                    limit: int,
+                    summary: dict) -> tuple[list[str], dict]:
+    """
+    given a PAT token, and a URL, without the 2 paging parameters appended,
+    attempt to load all of the data from the URL, up to our max result limit
+    """
+    itemList: list[str] = []
+    page = 1
+    perPage = 100
+
+    listPathExpr = jsonpath_ng.parse("[*]")
+
+    summary["initialFetchLimit"] = limit
+
+    while len(itemList) < limit:
+        # Set the page size.  We'll keep adjusting it down to fit the desired result. but 100 is the GH imposed max
+        perPage = limit - len(itemList)
+        pageArgs = PAGING_ARGS.format(per_page=perPage, page=page)
+
+        # Fetch a batch of items
+        url = urlWithoutPageParameter + pageArgs
+        DEBUG_PRINT(url)
+        response = requests.get(url, headers=_generateRerquestHeaders(ghtoken))
+        response.raise_for_status()
+        jsonData = response.json()
+
+        # Flatten from a DatumInContext into a simple list
+        fetchedItemList = [item.value for item in listPathExpr.find(jsonData)]
+
+        # Stop if there are no more items to fetch
+        if len(fetchedItemList) == 0:
+            break
+
+        # Add to our return list
+        itemList = itemList + fetchedItemList
+
+        page += 1
+
+        DEBUG_PRINT(f"Fetched {len(itemList)} total items")
+        summary["items_fetched"] = len(itemList)
+
+    return itemList, summary
 
 
 def _listPackages(ghtoken: str,
                   org: Optional[str],
                   user: Optional[str],
                   packageType: str,
+                  fetchLimit: int,
                   include: Optional[tuple[str, str]],
                   exclude: Optional[tuple[str, str]],
                   sortBy: Optional[str],
                   sortReverse: Optional[bool],
-                  summarize: bool) -> dict:
+                  summarize: bool):
     """
     Get the list of packages, and return the json response
     """
@@ -225,18 +276,14 @@ def _listPackages(ghtoken: str,
         url = LIST_PACKAGES_FOR_USER.format(user=user, package_type=packageType)
     assert url is not None, "Failed to generate a valid API url"
 
-    DEBUG_PRINT(f"URL -> {url}\n")
-
-    response = requests.get(url, headers=_generateRerquestHeaders(ghtoken))
-    response.raise_for_status()
-    jsonData = response.json()
-
     summary = {
         "org": org,
         "user": user,
         "packageType": packageType,
     }
-    packageList, summary = _filterAndSortListResponseJson(jsonData=jsonData, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
+
+    packageList, summary = _pagedDataFetch(ghtoken, url, fetchLimit, summary)
+    packageList, summary = _filterAndSortListResponseJson(itemList=packageList, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
 
     if summarize:
         INFO_PRINT(json.dumps(summary, indent=4))
@@ -249,27 +296,23 @@ def _listPackageVersions(ghtoken: str,
                          user: Optional[str],
                          packageType: str,
                          packageName: str,
+                         fetchLimit: int,
                          include: Optional[tuple[str, str]],
                          exclude: Optional[tuple[str, str]],
                          sortBy: Optional[str],
                          sortReverse: Optional[bool],
-                         summarize: bool) -> dict:
+                         summarize: bool):
     """
     Get the list of package versions for the specific package
     """
     assert bool(org) != bool(user)
+
     url = None
     if org:
         url = LIST_PACKAGE_VERSIONS_FOR_ORG.format(org=org, package_type=packageType, package_name=packageName)
     if user:
         url = LIST_PACKAGE_VERSIONS_FOR_USER.format(user=user, package_type=packageType, package_name=packageName)
     assert url is not None, "Failed to generate a valid API url"
-
-    DEBUG_PRINT(f"URL -> {url}\n")
-
-    response = requests.get(url, headers=_generateRerquestHeaders(ghtoken))
-    response.raise_for_status()
-    jsonData = response.json()
 
     summary = {
         "org": org,
@@ -278,7 +321,8 @@ def _listPackageVersions(ghtoken: str,
         "packageName": packageName
     }
 
-    versionList, summary = _filterAndSortListResponseJson(jsonData=jsonData, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
+    versionList, summary = _pagedDataFetch(ghtoken, url, fetchLimit, summary)
+    versionList, summary = _filterAndSortListResponseJson(itemList=versionList, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, summary=summary)
 
     if summarize:
         INFO_PRINT(json.dumps(summary, indent=4))
@@ -305,15 +349,15 @@ if __name__ == '__main__':
                         help='The GitHub Token (PAT) used to access the API.')
     orgUserGroup = parser.add_mutually_exclusive_group(required=True)
     orgUserGroup.add_argument('--org',
-                        dest='org',
-                        type=str,
-                        required=False,
-                        help='The Organization Name if dealign with org owned packages')
+                              dest='org',
+                              type=str,
+                              required=False,
+                              help='The Organization Name if dealign with org owned packages')
     orgUserGroup.add_argument('--user',
-                        dest='user',
-                        type=str,
-                        required=False,
-                        help='The User Name if dealign with User owned packages')
+                              dest='user',
+                              type=str,
+                              required=False,
+                              help='The User Name if dealign with User owned packages')
     parser.add_argument('--package_type',
                         dest='package_type',
                         type=str,
@@ -329,6 +373,12 @@ if __name__ == '__main__':
                         type=str,
                         required=False,
                         help='The package version ID to operate on')
+    parser.add_argument('--fetch_limit',
+                        dest='fetch_limit',
+                        required=False,
+                        default=1000,
+                        type=int,
+                        help="Fetching from the GH API is limited to 1000 records at a time.  Increase this with caution.")
     parser.add_argument('--include',
                         dest='include',
                         required=False,
@@ -374,8 +424,7 @@ if __name__ == '__main__':
 
     args = args = parser.parse_args()
 
-    if not args.debug:
-        DEBUG_PRINT = lambda msg: True
+    _debug = args.debug
 
     action: ACTION = ACTION(args.action)
     assert action is not None, "Unable to determine requested action from [{args.action}]"
@@ -386,6 +435,7 @@ if __name__ == '__main__':
                       org=args.org,
                       user=args.user,
                       packageType=args.package_type,
+                      fetchLimit=args.fetch_limit,
                       include=args.include,
                       exclude=args.exclude,
                       sortBy=args.sort_by,
@@ -398,13 +448,10 @@ if __name__ == '__main__':
                              org=args.org,
                              user=args.user,
                              packageType=args.package_type,
+                             fetchLimit=args.fetch_limit,
                              packageName=args.package_name,
                              include=args.include,
                              exclude=args.exclude,
                              sortBy=args.sort_by,
                              sortReverse=bool(args.reverse),
                              summarize=args.summary)
-
-
-
-

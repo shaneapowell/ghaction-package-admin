@@ -11,31 +11,16 @@ jobs:
 
     steps:
 
-    - name: test-A
+    - name: dryrun purge stale packages
       uses: shaneapowell/ghaction-package-admin@v0
 
       with:
-        operaton: listPackageVersions
+        ghtoken: ${{ github.token }}
+        operation: deletePackageVersions
+        user: ${{ github.repository_owner }}
+        package_type: container
+        package_name: ghaction-package-admin
+        exclude: metadata.container.tags[*]   .*
+        summary: true
 
-    # - name: Clean all untagged
-    #   uses: quartx-analytics/ghcr-cleaner@v1
-    #   with:
-    #     owner-type: org # or user
-    #     token: ${{ github.token }}
-    #     repository_owner: ${{ github.repository_owner }}
-    #     repository-name: ${{ github.repository }}
-    #     package-name: airstriptech/pysim
-    #     delete-untagged: true
-
-    # - name: Keep only most recent 10 develop images
-    #   uses: quartx-analytics/ghcr-cleaner@v1
-    #   with:
-    #     owner-type: org # or user
-    #     token: ${{ github.token }}
-    #     repository_owner: ${{ github.repository_owner }}
-    #     repository-name: ${{ github.repository }}
-    #     package-name: ghcr.io/airstriptech/pysim
-    #     keep-at-most: 10
-    #     filter-tags: develop*
-    #     skip-tags: latest
 

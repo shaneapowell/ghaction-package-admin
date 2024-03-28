@@ -101,7 +101,7 @@ jobs:
         file: ${{ inputs.sub_project_name }}/Dockerfile
         pull: true
         tags: |
-          ${{ inputs.sub_project_name}}:${{ github.workflow }}
+          ghcr.io/${{ github.repository_owner }}/${{ inputs.sub_project_name}}:${{ github.workflow }}
         secrets: GIT_AUTH_TOKEN=${{ github.token }}
         no-cache: false
         push: true

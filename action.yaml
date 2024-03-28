@@ -1,10 +1,10 @@
 name: GitHub Packages Admin
 description: Administer GitHub Packages
 inputs:
-    action:
+    operation:
       required: true
 runs:
   using: docker
-  image: ghcr.io/shaneapowell/gh-packages-admin@DEVELOP
+  image: shaneapowell/ghaction-package-admin@DEVELOP
   args:
-    - --action ${{ inputs.action }}
+    - --operation ${{ inputs.operation }}

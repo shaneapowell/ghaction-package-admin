@@ -96,6 +96,11 @@ jobs:
         tags: |
           ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ github.workflow }}
           ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ github.workflow }}-${{ github.run_number }}
+        labels: |
+          org.opencontainers.image.source=https://github.com/shaneapowell/ghaction-package-admin
+          org.opencontainers.image.source.ref=${{ github.ref_name }}
+          org.opencontainers.image.descriptio=GitHub Action for Package Admin
+          org.opencontainers.image.licenses=MIT
         secrets: GIT_AUTH_TOKEN=${{ github.token }}
         no-cache: false
         push: true

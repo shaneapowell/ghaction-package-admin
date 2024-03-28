@@ -12,9 +12,9 @@ jobs:
     steps:
 
     - name: test-A
-      uses: ghcr.io/shaneapowell/ghaction-package-admin:DEVELOP
+      uses: shaneapowell/ghaction-package-admin:DEVELOP
       with:
-        action: listPackageVersions
+        operaton: listPackageVersions
 
     # - name: Clean all untagged
     #   uses: quartx-analytics/ghcr-cleaner@v1

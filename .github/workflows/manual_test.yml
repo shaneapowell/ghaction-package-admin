@@ -1,4 +1,4 @@
-name: Manually Test the gh-packages-admin action
+name: Manual Test gh-packages-admin action
 
 on:
   workflow_dispatch:

@@ -7,6 +7,10 @@ inputs:
 runs:
   using: docker
   image: docker://ghcr.io/shaneapowell/ghaction-package-admin:develop
+  entrypoint:
+    - /usr/local/bin/pipenv
+    - run
+    - ghpkgadmin
   args:
     - --operation
     - ${{ inputs.operation }}

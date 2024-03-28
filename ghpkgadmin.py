@@ -24,13 +24,13 @@ GITHUB_PER_PAGE_LIMIT = 100
 
 
 LIST_PACKAGES_FOR_ORG = API_ROOT + "/orgs/{org}/packages?package_type={package_type}"
-LIST_PACKAGES_FOR_USER = API_ROOT + "/users/{username}/packages?package_type={package_type}"
+LIST_PACKAGES_FOR_USER = API_ROOT + "/users/{user}/packages?package_type={package_type}"
 
 # DELETE_PACKAGE_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}"
-# DELETE_PACKAGE_FOR_USER = API_ROOT + "/users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}"
+# DELETE_PACKAGE_FOR_USER = API_ROOT + "/users/{user}/packages/{package_type}/{package_name}/versions/{package_version_id}"
 
 LIST_PACKAGE_VERSIONS_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}/versions"
-LIST_PACKAGE_VERSIONS_FOR_USER = API_ROOT + "/users/{username}/packages/{package_type}/{package_name}/versions"
+LIST_PACKAGE_VERSIONS_FOR_USER = API_ROOT + "/users/{user}/packages/{package_type}/{package_name}/versions"
 
 DELETE_PACKAGE_VERSION_FOR_ORG = LIST_PACKAGE_VERSIONS_FOR_ORG + "/{package_version_id}"
 DELETE_PACKAGE_VERSION_FOR_USER = LIST_PACKAGE_VERSIONS_FOR_USER + "/{package_version_id}"
@@ -413,6 +413,38 @@ def _deletePackageVersions(summary: dict,
 
     return itemList, summary
 
+
+def _isTrue(s: Optional[str]) -> bool:
+    """
+    Simple isTrue check for various arg string values.
+    """
+    return s is not None and "true" in str(s.lower())
+
+
+def _argString(val: Optional[Any]):
+    """
+    Take in string args, and produce None for blanks or the keyword __NONE__.
+    """
+    if not val:
+        return None
+    val = str(val)
+    val = val.strip()
+    if len(val) == 0:
+        return None
+    if val == "__NONE__":
+        return None
+    return val
+
+
+def _argListOfNones(val: Optional[list]):
+    """
+    if the list contains only Nones, return None
+    """
+    if val is None or all(v is None for v in val):
+        return None
+    return val
+
+
 # ***************************************
 # MAIN
 # ***************************************
@@ -426,42 +458,41 @@ if __name__ == '__main__':
 
     parser.add_argument('--operation',
                         dest='operation',
-                        type=str,
+                        type=_argString,
                         required=True,
                         choices=list(map(lambda a: a.value, OPERATION)),
                         help='What Operation to run. This is the required main entry branching point.  Different commands result in different output types.')
     parser.add_argument('--ghtoken',
                         dest='ghtoken',
-                        type=str,
+                        type=_argString,
                         required=True,
                         help='The GitHub Token (PAT) used to access the API.')
-    orgUserGroup = parser.add_mutually_exclusive_group(required=True)
-    orgUserGroup.add_argument('--org',
-                              dest='org',
-                              type=str,
-                              required=False,
-                              help='The Organization Name if dealign with org owned packages')
-    orgUserGroup.add_argument('--user',
-                              dest='user',
-                              type=str,
-                              required=False,
-                              help='The User Name if dealign with User owned packages')
+    parser.add_argument('--org',
+                        dest='org',
+                        type=_argString,
+                        required=False,
+                        help='The Organization Name if dealign with org owned packages')
+    parser.add_argument('--user',
+                        dest='user',
+                        type=_argString,
+                        required=False,
+                        help='The User Name if dealign with User owned packages')
     parser.add_argument('--package_type',
                         dest='package_type',
-                        type=str,
+                        type=_argString,
                         required=True,
                         choices=["npm", "maven", "rubygems", "docker", "nuget", "container"],
                         help='One of the list of known github package types. eg "container, npm, docker..."')
     parser.add_argument('--package_name',
                         dest='package_name',
-                        type=str,
+                        type=_argString,
                         required=False,
                         help='The Package Name')
-    parser.add_argument('--package_version_id',
-                        dest='package_version_id',
-                        type=str,
-                        required=False,
-                        help='The package version ID to operate on')
+    # parser.add_argument('--package_version_id',
+    #                     dest='package_version_id',
+    #                     type=str,
+    #                     required=False,
+    #                     help='The package version ID to operate on')
     parser.add_argument('--fetch_limit',
                         dest='fetch_limit',
                         required=False,
@@ -472,12 +503,14 @@ if __name__ == '__main__':
                         dest='include',
                         required=False,
                         default=None,
+                        type=_argString,
                         nargs=2,
                         help="Include regex field matches")
     parser.add_argument('--exclude',
                         dest='exclude',
                         required=False,
                         default=None,
+                        type=_argString,
                         nargs=2,
                         help="Exclude regex field matches")
     parser.add_argument('--sort_by',
@@ -487,60 +520,72 @@ if __name__ == '__main__':
                         help="Sort by a field")
     parser.add_argument('--reverse',
                         dest='reverse',
-                        action='store_true',
+                        type=_argString,
                         required=False,
-                        default=False,
+                        default=str(True).lower(),
+                        choices=[str(True).lower(), str(False).lower()],
                         help="Reverse the Sort by. Ignored with no --sort_by provided")
     parser.add_argument('--slice',
                         dest='slice',
                         required=False,
                         default=None,
-                        type=str,
+                        type=_argString,
                         nargs=2,
-                        help="After include, exclude and sort is done, performa slice operation on the list.")
+                        help="After include, exclude and sort is done, performa slice operation on the list. eg: '5' '-' == [5:]")
     parser.add_argument('--summary',
                         dest='summary',
-                        action='store_true',
+                        type=_argString,
                         required=False,
-                        default=False,
+                        default=str(False).lower(),
+                        choices=[str(True).lower(), str(False).lower()],
                         help="Don't output the raw json data, instead just summarize the actions")
     parser.add_argument('--dryrun',
                         dest='dryrun',
-                        type=str,
+                        type=_argString,
                         required=False,
                         default=str(True).lower(),
                         choices=[str(True).lower(), str(False).lower()],
                         help='Delete operations can be dangerous. By default, we dryrun/pretend to do the actual operations.  Set this to False to run any Update/Delete operations.')
     parser.add_argument('--debug',
                         dest='debug',
-                        action='store_true',
+                        type=_argString,
                         required=False,
-                        default=False,
+                        default=str(False).lower(),
+                        choices=[str(True).lower(), str(False).lower()],
                         help="Add stderr debug output information")
 
-
+    # Grab our provided args, and dump into the summary
     args = args = parser.parse_args()
     summary = vars(args).copy()
+    _debug = _isTrue(args.debug)
 
-    _debug = args.debug
+    DEBUG_PRINT(summary)
 
+    # A few args checks.
+
+    # Operation
     operation: OPERATION = OPERATION(args.operation)
     assert operation is not None, "Unable to determine requested action from [{args.action}]"
 
+    # Org / User
+    assert bool(args.org) != bool(args.user), "one of '--org' or '--user' parameters is required."
+
+    # Fetch Limit
     assert args.fetch_limit > 10 and args.fetch_limit < 999999, "--fetch_limit must be between 10 and 999999"
 
+    # Slice Args
     sliceArgs = None
-    if args.slice:
+    if not _argListOfNones(args.slice):
         sliceStart = None
         sliceEnd = None
-        if "none" in args.slice[0].lower():
+        if args.slice[0] is None or "-" == args.slice[0]:
             sliceStart = None
         else:
             try:
                 sliceStart = int(args.slice[0])
             except Exception:
                 raise Exception("Slice Start must be a number or 'None'")
-        if "none" in args.slice[1].lower():
+        if args.slice[1] is None or "-" == args.slice[1].lower():
             sliceEnd = None
         else:
             try:
@@ -554,7 +599,7 @@ if __name__ == '__main__':
     summary['ghtoken'] = "***"
     summary = {"args": summary}
 
-    printSummary = args.summary
+    printSummary = _isTrue(args.summary)
     printResult = not printSummary
 
     if operation == OPERATION.LIST_PACKAGES:
@@ -564,10 +609,10 @@ if __name__ == '__main__':
                                         user=args.user,
                                         packageType=args.package_type,
                                         fetchLimit=args.fetch_limit,
-                                        include=args.include,
-                                        exclude=args.exclude,
+                                        include=_argListOfNones(args.include),
+                                        exclude=_argListOfNones(args.exclude),
                                         sortBy=args.sort_by,
-                                        sortReverse=bool(args.reverse),
+                                        sortReverse=_isTrue(args.reverse),
                                         slice=sliceArgs)
 
     if operation in [OPERATION.LIST_PACKAGE_VERSIONS, OPERATION.DELETE_PACKAGE_VERSIONS]:
@@ -579,10 +624,10 @@ if __name__ == '__main__':
                                                packageType=args.package_type,
                                                packageName=args.package_name,
                                                fetchLimit=args.fetch_limit,
-                                               include=args.include,
-                                               exclude=args.exclude,
+                                               include=_argListOfNones(args.include),
+                                               exclude=_argListOfNones(args.exclude),
                                                sortBy=args.sort_by,
-                                               sortReverse=bool(args.reverse),
+                                               sortReverse=_isTrue(args.reverse),
                                                slice=sliceArgs)
 
     if operation == OPERATION.DELETE_PACKAGE_VERSIONS:
@@ -596,7 +641,7 @@ if __name__ == '__main__':
                                                  user=args.user,
                                                  packageType=args.package_type,
                                                  packageName=args.package_name,
-                                                 dryrun="true" in str(args.dryrun).lower())
+                                                 dryrun=_isTrue(args.dryrun))
 
     if printSummary:
         INFO_PRINT(json.dumps(summary, indent=4))

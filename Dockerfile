@@ -5,14 +5,10 @@ WORKDIR /action
 RUN pip install pipenv
 COPY Pipfile          ./
 COPY Pipfile.lock     ./
-RUN pipenv sync
+RUN pipenv sync --system
+COPY entrypoint.sh ./
+RUN ["chmod", "+x", "entrypoint.sh"]
 COPY ghpkgadmin.py    ./
-#COPY entrypoint.sh ./
-#RUN ["chmod", "+x", "entrypoint.sh"]
 
-#ENTRYPOINT ["/entrypoint.sh"]
-#CMD ["help"]
-#ENTRYPOINT ["/.local/bin/pipenv" "run" "ghpkgadmin"]
-#CMD ["--help"]
-ENTRYPOINT ["/usr/local/bin/pipenv", "run", "ghpkgadmin"]
+ENTRYPOINT [ "/action/entrypoint.sh" ]
 CMD ["--help"]

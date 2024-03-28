@@ -1,9 +1,65 @@
 name: GitHub Packages Admin
-description: Administer GitHub Packages
+author: ShaneAPowell
+description: Administer GitHub Packages.  See README.md for more detaild syntax help.
+
 inputs:
-    operation:
-      required: true
-      description: Which package operation to perform
+  operation:
+    required: true
+    description: Which package operation to perform.
+  ghtoken:
+    required: true
+    description: The GitHub PAT Access token.
+  org:
+    required: false
+    description: The GitHub Org Name if this is an Organization owned package.
+    default: __NONE__
+  user:
+    required: false
+    description: The GitHub User Name if this is a User owned package.
+    default: __NONE__
+  package_type:
+    required: true
+    description: The package type code.
+  package_name:
+    required: false
+    description: The package Name
+    default: __NONE__
+  fetch_limit:
+    required: false
+    description: The maximum total items to fetch from the API before filtering and sorting.
+    default: __NONE__
+  include:
+    required: false
+    description: The Include Filter.  After the initial fetch, this keeps only what matches this filter.
+    default: __NONE__ __NONE__
+  exclude:
+    required: false
+    description:  The Exclude Filter. After the initial fetch, and the include filter, this discards what matches this filter.
+    default: __NONE__ __NONE__
+  sort_by:
+    required: false
+    description:  After the filters are done, sort the items by this field.
+    default: __NONE__
+  reverse:
+    required: false
+    description: Reverse the natural sort order of the sort_by field.
+    default: false
+  slice:
+    required: false
+    description: Run a python slice operation on the result after all filtering and sorting is done.
+    default: __NONE__ __NONE__
+  summary:
+    required: false
+    description: If the operation produces a list output, instead produce a summary output.
+    default: false
+  dryrun:
+    required: false
+    description: Delete operations are dangerous. By default dryrun is true.  Set to false to actually execute the deletions.
+    default: true
+  debug:
+    required: false
+    description: Enable extra debug output logging
+    default: false
 
 runs:
   using: docker
@@ -11,7 +67,32 @@ runs:
   args:
     - --operation
     - ${{ inputs.operation }}
+    - --ghtoken
+    - ${{ inputs.ghtoken }}
+    - --org
+    - ${{ inputs.org }}
+    - --user
+    - ${{ inputs.user }}
+    - --package_type
+    - ${{ inputs.package_type }}
+    - --package_name
+    - ${{ inputs.package_name }}
+    - --include
+    - "${{ inputs.include }}"
+    - --exclude
+    - ${{ inputs.exclude }}
+    - --sort_by
+    - ${{ inputs.sort_by }}
+    - --reverse
+    - ${{ inputs.reverse }}
+    - --slice
+    - ${{ inputs.slice }}
+    - --summary
+    - ${{ inputs.summary }}
+    - --dryrun
+    - ${{ inputs.dryrun }}
     - --debug
+    - ${{ inputs.debug }}
 branding:
   icon: 'package'
   color: 'blue'

@@ -1,4 +1,4 @@
-name: Manual Test gh-packages-admin action
+name: Example actions
 
 on:
   workflow_dispatch:

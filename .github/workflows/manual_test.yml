@@ -11,7 +11,7 @@ jobs:
 
     steps:
 
-    - name: dryrun purge stale packages
+    - name: dryrun purge untagged packages
       uses: shaneapowell/ghaction-package-admin@v0
 
       with:
@@ -21,6 +21,22 @@ jobs:
         package_type: container
         package_name: ghaction-package-admin
         exclude: metadata.container.tags[*]   .*
+        summary: true
+
+
+    - name: dryrun drop all DEVELOP tags but top 5 tags
+      uses: shaneapowell/ghaction-package-admin@v0
+
+      with:
+        ghtoken: ${{ github.token }}
+        operation: deletePackageVersions
+        user: ${{ github.repository_owner }}
+        package_type: container
+        package_name: ghaction-package-admin
+        include: metadata.container.tags[*]   DEVELOP.*
+        sort_by: updated_at
+        reverse: true
+        slice: 5 __NONE__
         summary: true
 
 

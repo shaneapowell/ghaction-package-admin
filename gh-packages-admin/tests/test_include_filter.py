@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import Mock
+# from unittest.mock import Mock
 import ghpkgadmin as g
 import json
 
@@ -26,7 +26,7 @@ def testIncludeSimpleMatcheAll(itemList):
     result, summary = g._includeFilter(itemList=itemList, include=('name', '.*'), summary=summary)
 
     # Then
-    #assert result is list
+    # assert type(result) is list
     assert len(result) == 4
 
 
@@ -42,5 +42,3 @@ def testIncludeSimpleMatcheAll(itemList):
 
 #     # Then
 #     assert len(result) == 1
-
-

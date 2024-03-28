@@ -6,7 +6,7 @@ A simple python script that can run a set of GitHub Package Admin functions.
 """
 import sys
 import argparse
-from typing import Optional, Union, Any
+from typing import Optional, Any
 from enum import Enum
 import requests
 import json
@@ -26,8 +26,8 @@ GITHUB_PER_PAGE_LIMIT = 100
 LIST_PACKAGES_FOR_ORG = API_ROOT + "/orgs/{org}/packages?package_type={package_type}"
 LIST_PACKAGES_FOR_USER = API_ROOT + "/users/{username}/packages?package_type={package_type}"
 
-#DELETE_PACKAGE_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}"
-#DELETE_PACKAGE_FOR_USER = API_ROOT + "/users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}"
+# DELETE_PACKAGE_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}"
+# DELETE_PACKAGE_FOR_USER = API_ROOT + "/users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}"
 
 LIST_PACKAGE_VERSIONS_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}/versions"
 LIST_PACKAGE_VERSIONS_FOR_USER = API_ROOT + "/users/{username}/packages/{package_type}/{package_name}/versions"
@@ -64,6 +64,7 @@ def _generateRerquestHeaders(ghtoken: str) -> dict:
         "Authorization": f"Bearer {ghtoken}",
         "X-GitHub-Api-Version": "2022-11-28"
     }
+
 
 def _findRootIndex(jsonpath: jsonpath_ng.Child | jsonpath_ng.Index | jsonpath_ng.DatumInContext) -> int:
     """
@@ -106,12 +107,12 @@ def _includeFilter(itemList: list[dict],
     # Item Path Matcher, and it's matching regex value matcher
     try:
         fieldPathExpr = jsonpath_ng.parse(includePath)
-    except Exception as e:
+    except Exception:
         raise Exception(f"Malformed json path in include filter '{includePath}'. See above exception.")
 
     try:
         fieldValueRegex = re.compile(includeRegex)
-    except Exception as e:
+    except Exception:
         raise Exception(f"Malformed regex in include filter '{includeRegex}'. See above exception.")
 
     # Needs to be a OrderedDict by rootIndex, so we don't duplicate
@@ -150,12 +151,12 @@ def _excludeFilter(itemList: list[dict],
     # Item Path Matcher, and it's matching regex value matcher
     try:
         fieldPathExpr = jsonpath_ng.parse(excludePath)
-    except Exception as e:
+    except Exception:
         raise Exception(f"Malformed json path in exclude filter {excludePath}. See above exception.")
 
     try:
         fieldValueRegex = re.compile(excludeRegex)
-    except Exception as e:
+    except Exception:
         raise Exception(f"Malformed regex in include filter {excludeRegex}. See above exception.")
 
     newItemList = itemList.copy()
@@ -218,7 +219,7 @@ def _filterAndSortListResponseJson(itemList: list[dict],
                                    exclude: Optional[tuple[str, str]],  # path, regex
                                    sortBy: Optional[str],
                                    sortReverse: Optional[bool],
-                                   slice: Optional[tuple[int,int]],
+                                   slice: Optional[tuple[int|None, int|None]],
                                    summary: dict) -> tuple[list[dict], dict]:
     """
     Take the raw string json response. This response should contain a root list of items.
@@ -262,7 +263,7 @@ def _pagedDataFetch(ghtoken: str,
     DEBUG_PRINT(urlWithoutPageParameter)
     DEBUG_PRINT(f"limit: {totalFetchLimit}")
 
-    result = []
+    result: list = []
     page = 1
 
     while page > 0:
@@ -313,7 +314,7 @@ def _listPackages(summary: dict,
                   exclude: Optional[tuple[str, str]],
                   sortBy: Optional[str],
                   sortReverse: Optional[bool],
-                  slice: Optional[tuple[int,int]]) -> tuple[list[dict], dict]:
+                  slice: Optional[tuple[int|None, int|None]]) -> tuple[list[dict], dict]:
     """
     Get the list of packages, and return the json response
     """
@@ -343,7 +344,7 @@ def _listPackageVersions(summary: dict,
                          exclude: Optional[tuple[str, str]],
                          sortBy: Optional[str],
                          sortReverse: Optional[bool],
-                         slice: Optional[tuple[int,int]]) -> tuple[list[dict], dict]:
+                         slice: Optional[tuple[int|None, int|None]]) -> tuple[list[dict], dict]:
     """
     Get the list of package versions for the specific package
     """
@@ -361,6 +362,7 @@ def _listPackageVersions(summary: dict,
     versionList, summary = _filterAndSortListResponseJson(itemList=versionList, include=include, exclude=exclude, sortBy=sortBy, sortReverse=sortReverse, slice=slice, summary=summary)
 
     return versionList, summary
+
 
 def _deletePackageVersions(summary: dict,
                            itemList: list[dict],
@@ -414,6 +416,7 @@ def _deletePackageVersions(summary: dict,
 # ***************************************
 # MAIN
 # ***************************************
+
 
 if __name__ == '__main__':
     """
@@ -535,21 +538,21 @@ if __name__ == '__main__':
         else:
             try:
                 sliceStart = int(args.slice[0])
-            except:
+            except Exception:
                 raise Exception("Slice Start must be a number or 'None'")
         if "none" in args.slice[1].lower():
             sliceEnd = None
         else:
             try:
                 sliceEnd = int(args.slice[1])
-            except:
+            except Exception:
                 raise Exception("Slice End must be a number or 'None'")
         sliceArgs = (sliceStart, sliceEnd)
         summary["slice"] = sliceArgs
 
 
     summary['ghtoken'] = "***"
-    summary = {"args": summary }
+    summary = {"args": summary}
 
     printSummary = args.summary
     printResult = not printSummary

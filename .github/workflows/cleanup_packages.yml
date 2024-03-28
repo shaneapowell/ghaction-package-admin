@@ -17,7 +17,7 @@ jobs:
 
     steps:
 
-    - name: dryrun purge untagged packages
+    - name: purge untagged packages
       uses: shaneapowell/ghaction-package-admin@v0
 
       with:
@@ -31,7 +31,7 @@ jobs:
         dryrun: ${{ inputs.dryrun }}
 
 
-    - name: dryrun drop all DEVELOP tags but top 5 tags
+    - name: drop all DEVELOP tags but top 5 tags
       uses: shaneapowell/ghaction-package-admin@v0
 
       with:
@@ -47,4 +47,20 @@ jobs:
         summary: true
         dryrun: ${{ inputs.dryrun }}
 
+
+    - name: drop all v#-### tags but top 5 tags
+      uses: shaneapowell/ghaction-package-admin@v0
+
+      with:
+        ghtoken: ${{ github.token }}
+        operation: deletePackageVersions
+        user: ${{ github.repository_owner }}
+        package_type: container
+        package_name: ghaction-package-admin
+        include: metadata.container.tags[*]   [vV][0-9]*-[0-9]*
+        sort_by: updated_at
+        reverse: true
+        slice: 5 __NONE__
+        summary: true
+        dryrun: ${{ inputs.dryrun }}
 

@@ -86,7 +86,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and push ${{ github.event.repository.name }}:${{ github.workflow }}
+    - name: Build and push ${{ github.event.repository.name }}:${{ github.ref_name }}
       if: ${{ inputs.create_docker_image == true }}
       uses: docker/build-push-action@v5
       with:
@@ -94,8 +94,8 @@ jobs:
         file: Dockerfile
         pull: true
         tags: |
-          ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ github.workflow }}
-          ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ github.workflow }}-${{ github.run_number }}
+          ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ github.ref_name }}
+          ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ github.ref_name }}-${{ github.run_number }}
         labels: |
           org.opencontainers.image.source=https://github.com/shaneapowell/ghaction-package-admin
           org.opencontainers.image.source.ref=${{ github.ref_name }}

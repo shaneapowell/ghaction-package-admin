@@ -82,7 +82,7 @@ pipenv run ghpkadmin --action deletePackageVersions --ghtoken <token> --org <you
 ```
 ### Action
 ```yaml
-- name: Delete all but the most recent packages for a tag.
+- name: Delete all but the most recent packages for a tag (case insensitive).
     uses: shaneapowell/ghaction-package-admin@v0
     with:
       action: deletePackageVersions
@@ -92,7 +92,7 @@ pipenv run ghpkadmin --action deletePackageVersions --ghtoken <token> --org <you
       package_name: <name>
       include:
         - "metadata.contaienr.tags[*]"
-        - "DEVELOP-.*"
+        - "(?i)DEVELOP-.*"
       exclude:
         - "metadata.contaienr.tags[*]"
         - ".*-latest"

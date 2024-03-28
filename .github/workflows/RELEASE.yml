@@ -3,11 +3,12 @@ name: DEVELOP
 on:
   workflow_dispatch:
   push:
-    branches: [ develop ]
+      tags:
+        - v*
 
 jobs:
 
-  build-develop-gh-packages-admin:
+  build-release-gh-packages-admin:
     uses: ./.github/workflows/_build.yml
     with:
       create_docker_image: true

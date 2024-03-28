@@ -3,11 +3,14 @@ description: Administer GitHub Packages
 inputs:
     operation:
       required: true
+
 runs:
   using: docker
   image: docker://ghcr.io/shaneapowell/ghaction-package-admin:develop
   args:
-    - --operation ${{ inputs.operation }}
+    - --operation
+    - ${{ inputs.operation }}
+    - --debug
 branding:
   icon: 'package'
   color: 'blue'

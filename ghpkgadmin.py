@@ -49,7 +49,7 @@ def INFO_PRINT(msg):
     print(msg)
 
 
-class ACTION(str, Enum):
+class OPERATION(str, Enum):
     LIST_PACKAGES = "listPackages"
     LIST_PACKAGE_VERSIONS = "listPackageVersions"
     DELETE_PACKAGE_VERSIONS = "deletePackageVersions"
@@ -424,12 +424,12 @@ if __name__ == '__main__':
     """
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--action',
-                        dest='action',
+    parser.add_argument('--operation',
+                        dest='operation',
                         type=str,
                         required=True,
-                        choices=list(map(lambda a: a.value, ACTION)),
-                        help='What action to run. This is the required main entry branching point.  Different commands result in different output types.')
+                        choices=list(map(lambda a: a.value, OPERATION)),
+                        help='What Operation to run. This is the required main entry branching point.  Different commands result in different output types.')
     parser.add_argument('--ghtoken',
                         dest='ghtoken',
                         type=str,
@@ -524,8 +524,8 @@ if __name__ == '__main__':
 
     _debug = args.debug
 
-    action: ACTION = ACTION(args.action)
-    assert action is not None, "Unable to determine requested action from [{args.action}]"
+    operation: OPERATION = OPERATION(args.operation)
+    assert operation is not None, "Unable to determine requested action from [{args.action}]"
 
     assert args.fetch_limit > 10 and args.fetch_limit < 999999, "--fetch_limit must be between 10 and 999999"
 
@@ -557,7 +557,7 @@ if __name__ == '__main__':
     printSummary = args.summary
     printResult = not printSummary
 
-    if action == ACTION.LIST_PACKAGES:
+    if operation == OPERATION.LIST_PACKAGES:
         result, summary = _listPackages(summary=summary,
                                         ghtoken=args.ghtoken,
                                         org=args.org,
@@ -570,7 +570,7 @@ if __name__ == '__main__':
                                         sortReverse=bool(args.reverse),
                                         slice=sliceArgs)
 
-    if action in [ACTION.LIST_PACKAGE_VERSIONS, ACTION.DELETE_PACKAGE_VERSIONS]:
+    if operation in [OPERATION.LIST_PACKAGE_VERSIONS, OPERATION.DELETE_PACKAGE_VERSIONS]:
         assert args.package_name, f"--package_name is required with --action {args.package_name}"
         result, summary = _listPackageVersions(summary=summary,
                                                ghtoken=args.ghtoken,
@@ -585,7 +585,7 @@ if __name__ == '__main__':
                                                sortReverse=bool(args.reverse),
                                                slice=sliceArgs)
 
-    if action == ACTION.DELETE_PACKAGE_VERSIONS:
+    if operation == OPERATION.DELETE_PACKAGE_VERSIONS:
         assert result is not None and type(result) is list
         printSummary = True
         printResult = False

@@ -90,8 +90,8 @@ jobs:
       if: ${{ inputs.create_docker_image == true }}
       uses: docker/build-push-action@v5
       with:
-        context: ${{ inputs.sub_project_name }}
-        file: ${{ inputs.sub_project_name }}/Dockerfile
+        context: .
+        file: Dockerfile
         pull: true
         tags: |
           ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ github.workflow }}

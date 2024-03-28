@@ -22,7 +22,7 @@ pipenv run ghpkadmin --action listPackageVersions --ghtoken <token> --org <your 
 ### Action
 ```yaml
 - name: Delete Packages without Tags
-    uses: shaneapowell/gh-packages-admin@v1
+    uses: shaneapowell/ghaction-package-admin@v0
     with:
       action: listPackageVersions
       ghtoken: <token>
@@ -51,7 +51,7 @@ pipenv run ghpkadmin --action deletePackageVersions --ghtoken <token> --org <you
 ### Action
 ```yaml
 - name: Delete Packages without Tags
-    uses: shaneapowell/gh-packages-admin@v1
+    uses: shaneapowell/ghaction-package-admin@v0
     with:
       action: deletePackageVersions
       ghtoken: <token>
@@ -80,7 +80,7 @@ pipenv run ghpkadmin --action deletePackageVersions --ghtoken <token> --org <you
 ### Action
 ```yaml
 - name: Delete all but the most recent packages for a tag.
-    uses: shaneapowell/gh-packages-admin@v1
+    uses: shaneapowell/ghaction-package-admin@v0
     with:
       action: deletePackageVersions
       ghtoken: <token>

@@ -12,7 +12,8 @@ jobs:
     steps:
 
     - name: test-A
-      uses: shaneapowell/ghaction-package-admin:DEVELOP
+      uses: shaneapowell/ghaction-package-admin@v0
+
       with:
         operaton: listPackageVersions
 

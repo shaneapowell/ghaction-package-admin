@@ -37,7 +37,7 @@ jobs:
         clean: true
 
     - name: Create Cache KeyHash
-      run: echo "CACHE_KEY=build-${{ hashFiles('/Pipfile.lock') }}" >> $GITHUB_ENV
+      run: echo "CACHE_KEY=build-${{ input.sub_project_name}}-$(sha1sum Pipfile.lock | cut -d ' ' -f 1)" >> $GITHUB_ENV
       working-directory: ${{ inputs.sub_project_name }}
 
     - name: Setup Python 3.11

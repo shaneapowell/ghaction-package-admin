@@ -103,7 +103,5 @@ jobs:
           ${{ inputs.sub_project_name}}:${{ github.workflow }}
         secrets: GIT_AUTH_TOKEN=${{ github.token }}
         no-cache: false
-        cache-from: type=local,src=/tmp/.buildx-cache
-        cache-to: type=local,dest=/tmp/.buildx-cache-new
         push: true
 

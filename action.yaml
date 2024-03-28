@@ -3,14 +3,11 @@ description: Administer GitHub Packages
 inputs:
     operation:
       required: true
+      description: Which package operation to perform
 
 runs:
   using: docker
   image: docker://ghcr.io/shaneapowell/ghaction-package-admin:develop
-  entrypoint:
-    - /usr/local/bin/pipenv
-    - run
-    - ghpkgadmin
   args:
     - --operation
     - ${{ inputs.operation }}

@@ -219,7 +219,7 @@ def _filterAndSortListResponseJson(itemList: list[dict],
                                    exclude: Optional[tuple[str, str]],  # path, regex
                                    sortBy: Optional[str],
                                    sortReverse: Optional[bool],
-                                   slice: Optional[tuple[int|None, int|None]],
+                                   slice: Optional[tuple[int | None, int | None]],
                                    summary: dict) -> tuple[list[dict], dict]:
     """
     Take the raw string json response. This response should contain a root list of items.
@@ -314,7 +314,7 @@ def _listPackages(summary: dict,
                   exclude: Optional[tuple[str, str]],
                   sortBy: Optional[str],
                   sortReverse: Optional[bool],
-                  slice: Optional[tuple[int|None, int|None]]) -> tuple[list[dict], dict]:
+                  slice: Optional[tuple[int | None, int | None]]) -> tuple[list[dict], dict]:
     """
     Get the list of packages, and return the json response
     """
@@ -344,7 +344,7 @@ def _listPackageVersions(summary: dict,
                          exclude: Optional[tuple[str, str]],
                          sortBy: Optional[str],
                          sortReverse: Optional[bool],
-                         slice: Optional[tuple[int|None, int|None]]) -> tuple[list[dict], dict]:
+                         slice: Optional[tuple[int | None, int | None]]) -> tuple[list[dict], dict]:
     """
     Get the list of package versions for the specific package
     """

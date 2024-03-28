@@ -99,8 +99,10 @@ jobs:
       with:
         context: ${{ inputs.sub_project_name }}
         file: ${{ inputs.sub_project_name }}/Dockerfile
+        pull: true
         tags: |
           ${{ inputs.sub_project_name}}:${{ github.workflow }}
+          ${{ inputs.sub_project_name}}:${{ github.workflow }}-${{ github.run_number }}
         secrets: GIT_AUTH_TOKEN=${{ github.token }}
         no-cache: false
         push: true

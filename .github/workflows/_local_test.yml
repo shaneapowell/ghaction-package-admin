@@ -1,4 +1,4 @@
-name: Local Test gh-packages-admin action
+name: _local_test
 
 on:
   workflow_dispatch:

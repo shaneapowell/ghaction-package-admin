@@ -1,25 +1,25 @@
 import ghpkgadmin as g
 
 
-def testArgListOfNones01():
+def testArgListOfNonesAllNones():
 
     # Given
     args = [None, None]
 
     # When
-    res = g._argListOfNones(args)
+    res = g._argListOfNonesToNone(args)
 
     # Then
     assert res is None
 
 
-def testArgListOfNotNones():
+def testArgListOfNotAllNones():
 
     # Given
     args = [None, "t", None]
 
     # When
-    res = g._argListOfNones(args)
+    res = g._argListOfNonesToNone(args)
 
     # Then
     assert res is not None

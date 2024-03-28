@@ -243,6 +243,7 @@ def _filterAndSortListResponseJson(itemList: list[dict],
     summary["items_found"] = len(itemList)
 
     if slice:
+        DEBUG_PRINT(f"slice with [{slice[0]}:{slice[1]}]")
         itemList = itemList[slice[0]:slice[1]]
         summary["sliced"] = len(itemList)
 
@@ -436,7 +437,7 @@ def _argString(val: Optional[Any]):
     return val
 
 
-def _argListOfNones(val: Optional[list]):
+def _argListOfNonesToNone(val: Optional[list]):
     """
     if the list contains only Nones, return None
     """
@@ -571,23 +572,19 @@ if __name__ == '__main__':
     assert bool(args.org) != bool(args.user), "one of '--org' or '--user' parameters is required."
 
     # Fetch Limit
-    assert args.fetch_limit > 10 and args.fetch_limit < 999999, "--fetch_limit must be between 10 and 999999"
+    assert args.fetch_limit >= 10 and args.fetch_limit <= 999999, "--fetch_limit must be between 10 and 999999"
 
     # Slice Args
     sliceArgs = None
-    if not _argListOfNones(args.slice):
+    if _argListOfNonesToNone(args.slice) is not None:
         sliceStart = None
         sliceEnd = None
-        if args.slice[0] is None or "-" == args.slice[0]:
-            sliceStart = None
-        else:
+        if args.slice[0] is not None:
             try:
                 sliceStart = int(args.slice[0])
             except Exception:
                 raise Exception("Slice Start must be a number or 'None'")
-        if args.slice[1] is None or "-" == args.slice[1].lower():
-            sliceEnd = None
-        else:
+        if args.slice[1] is not None:
             try:
                 sliceEnd = int(args.slice[1])
             except Exception:
@@ -609,8 +606,8 @@ if __name__ == '__main__':
                                         user=args.user,
                                         packageType=args.package_type,
                                         fetchLimit=args.fetch_limit,
-                                        include=_argListOfNones(args.include),
-                                        exclude=_argListOfNones(args.exclude),
+                                        include=_argListOfNonesToNone(args.include),
+                                        exclude=_argListOfNonesToNone(args.exclude),
                                         sortBy=args.sort_by,
                                         sortReverse=_isTrue(args.reverse),
                                         slice=sliceArgs)
@@ -624,8 +621,8 @@ if __name__ == '__main__':
                                                packageType=args.package_type,
                                                packageName=args.package_name,
                                                fetchLimit=args.fetch_limit,
-                                               include=_argListOfNones(args.include),
-                                               exclude=_argListOfNones(args.exclude),
+                                               include=_argListOfNonesToNone(args.include),
+                                               exclude=_argListOfNonesToNone(args.exclude),
                                                sortBy=args.sort_by,
                                                sortReverse=_isTrue(args.reverse),
                                                slice=sliceArgs)

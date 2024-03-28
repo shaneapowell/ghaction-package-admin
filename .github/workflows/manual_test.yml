@@ -1,0 +1,40 @@
+name: Manually Test the gh-packages-admin action
+
+on:
+  workflow_dispatch:
+
+jobs:
+
+  test-gh-packages-admin:
+
+    runs-on: [ubuntu-latest]
+
+    steps:
+
+    - name: test-A
+      uses: ghcr.io/shaneapowell/ghaction-package-admin:DEVELOP
+      with:
+        action: listPackageVersions
+
+    # - name: Clean all untagged
+    #   uses: quartx-analytics/ghcr-cleaner@v1
+    #   with:
+    #     owner-type: org # or user
+    #     token: ${{ github.token }}
+    #     repository_owner: ${{ github.repository_owner }}
+    #     repository-name: ${{ github.repository }}
+    #     package-name: airstriptech/pysim
+    #     delete-untagged: true
+
+    # - name: Keep only most recent 10 develop images
+    #   uses: quartx-analytics/ghcr-cleaner@v1
+    #   with:
+    #     owner-type: org # or user
+    #     token: ${{ github.token }}
+    #     repository_owner: ${{ github.repository_owner }}
+    #     repository-name: ${{ github.repository }}
+    #     package-name: ghcr.io/airstriptech/pysim
+    #     keep-at-most: 10
+    #     filter-tags: develop*
+    #     skip-tags: latest
+

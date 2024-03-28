@@ -3,10 +3,6 @@ name: Build
 on:
   workflow_call:
     inputs:
-      sub_project_name:
-        required: true
-        type: string
-        description: The action sub-package to build
       create_docker_image:
         required: false
         type: boolean
@@ -30,15 +26,12 @@ jobs:
 
     steps:
 
-    - run: echo "Building ${{ inputs.sub_project_name }}"
-
     - uses: actions/checkout@v4
       with:
         clean: true
 
     - name: Create Cache KeyHash
-      run: echo "CACHE_KEY=build-${{ inputs.sub_project_name}}-$(sha1sum Pipfile.lock | cut -d ' ' -f 1)" >> $GITHUB_ENV
-      working-directory: ${{ inputs.sub_project_name }}
+      run: echo "CACHE_KEY=build-${{ hashFiles('Pipfile.lock') }}" >> $GITHUB_ENV
 
     - name: Setup Python 3.11
       uses: actions/setup-python@v5
@@ -61,19 +54,15 @@ jobs:
 
     - name: Install/Update package dependencies
       run: pipenv sync
-      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Linter
       run: pipenv run linter
-      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Type Checks
       run: pipenv run typechecker
-      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Unit Tests
       run: pipenv run tests
-      working-directory: ${{ inputs.sub_project_name }}
 
     - name: Push Cache
       if : ${{ inputs.push_cache == true }}
@@ -97,7 +86,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and push ${{ inputs.sub_project_name}}:${{ github.workflow }}
+    - name: Build and push ${{ github.event.repository.name }}:${{ github.workflow }}
       if: ${{ inputs.create_docker_image == true }}
       uses: docker/build-push-action@v5
       with:
@@ -105,8 +94,8 @@ jobs:
         file: ${{ inputs.sub_project_name }}/Dockerfile
         pull: true
         tags: |
-          ghcr.io/${{ github.actor }}/${{ inputs.sub_project_name}}:${{ github.workflow }}
-          ghcr.io/${{ github.actor }}/${{ inputs.sub_project_name}}:${{ github.workflow }}-${{ github.run_number }}
+          ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ github.workflow }}
+          ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}:${{ github.workflow }}-${{ github.run_number }}
         secrets: GIT_AUTH_TOKEN=${{ github.token }}
         no-cache: false
         push: true

@@ -13,7 +13,6 @@ jobs:
   build-develop-gh-packages-admin:
     uses: ./.github/workflows/_build.yml
     with:
-      sub_project_name: gh-packages-admin
       create_docker_image: true
       push_cache: true
 

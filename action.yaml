@@ -5,7 +5,7 @@ inputs:
       required: true
 runs:
   using: docker
-  image: docker://ghcr.io/shaneapowell/ghaction-package-admin@develop
+  image: docker://ghcr.io/shaneapowell/ghaction-package-admin:develop
   args:
     - --operation ${{ inputs.operation }}
 branding:

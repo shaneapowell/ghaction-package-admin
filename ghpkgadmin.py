@@ -29,13 +29,13 @@ LIST_PACKAGES_FOR_USER = API_ROOT + "/users/{user}/packages?package_type={packag
 # DELETE_PACKAGE_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}"
 # DELETE_PACKAGE_FOR_USER = API_ROOT + "/users/{user}/packages/{package_type}/{package_name}/versions/{package_version_id}"
 
-LIST_PACKAGE_VERSIONS_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}/versions"
-LIST_PACKAGE_VERSIONS_FOR_USER = API_ROOT + "/users/{user}/packages/{package_type}/{package_name}/versions"
+LIST_PACKAGE_VERSIONS_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}/versions?"
+LIST_PACKAGE_VERSIONS_FOR_USER = API_ROOT + "/users/{user}/packages/{package_type}/{package_name}/versions?"
 
 DELETE_PACKAGE_VERSION_FOR_ORG = LIST_PACKAGE_VERSIONS_FOR_ORG + "/{package_version_id}"
 DELETE_PACKAGE_VERSION_FOR_USER = LIST_PACKAGE_VERSIONS_FOR_USER + "/{package_version_id}"
 
-PAGING_ARGS = "?per_page={per_page}&page={page}"
+PAGING_ARGS = "&per_page={per_page}&page={page}"
 
 _debug = True
 
@@ -55,7 +55,7 @@ class OPERATION(str, Enum):
     DELETE_PACKAGE_VERSIONS = "deletePackageVersions"
 
 
-def _generateRerquestHeaders(ghtoken: str) -> dict:
+def _generateRequestHeaders(ghtoken: str) -> dict:
     """
     Generate a common basic auth object for all GH interactions
     """
@@ -279,7 +279,7 @@ def _pagedDataFetch(ghtoken: str,
             url = url + pageArgs
 
         DEBUG_PRINT(url)
-        response = requests.get(url, headers=_generateRerquestHeaders(ghtoken))
+        response = requests.get(url, headers=_generateRequestHeaders(ghtoken))
         response.raise_for_status()
         fetched: list = response.json()
 
@@ -398,7 +398,7 @@ def _deletePackageVersions(summary: dict,
 
             DEBUG_PRINT(url)
             if not dryrun:
-                response = requests.delete(url, headers=_generateRerquestHeaders(ghtoken))
+                response = requests.delete(url, headers=_generateRequestHeaders(ghtoken))
                 response.raise_for_status()
                 if response.status_code == 204:
                     INFO_PRINT("Ok")

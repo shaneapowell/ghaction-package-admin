@@ -19,7 +19,6 @@ jobs:
 
     - name: purge untagged packages
       uses: shaneapowell/ghaction-package-admin@v0
-
       with:
         ghtoken: ${{ github.token }}
         operation: deletePackageVersions
@@ -33,7 +32,6 @@ jobs:
 
     - name: drop all DEVELOP tags but top 5 tags
       uses: shaneapowell/ghaction-package-admin@v0
-
       with:
         ghtoken: ${{ github.token }}
         operation: deletePackageVersions
@@ -50,7 +48,6 @@ jobs:
 
     - name: drop all v#-### tags but top 5 tags
       uses: shaneapowell/ghaction-package-admin@v0
-
       with:
         ghtoken: ${{ github.token }}
         operation: deletePackageVersions

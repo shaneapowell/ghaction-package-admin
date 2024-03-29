@@ -1,6 +1,6 @@
 name: GitHub Packages Admin
 author: ShaneAPowell
-description: Administer GitHub Packages.  See README.md for more detaild syntax help.
+description: List and Delete GitHub Packages
 
 inputs:
   operation:

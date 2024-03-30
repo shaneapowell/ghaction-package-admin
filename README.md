@@ -1,4 +1,8 @@
 
+![DEVELOP](https://github.com/shaneapowell/ghaction-package-admin/actions/workflows/DEVELOP.yml/badge.svg)
+![RELEASE](https://github.com/shaneapowell/ghaction-package-admin/actions/workflows/RELEASE.yml/badge.svg)
+![Example](https://github.com/shaneapowell/ghaction-package-admin/actions/workflows/cleanup_packages.yml/badge.svg)
+
 ### This action provides flexible administration to your GitHub packages.
 
 # Features
@@ -194,7 +198,7 @@ Important not here, this limit is imposed BEFORE any filtering or sorting is don
 ```
 
 # Order of Operations
-When this action runs, the various options run in a particular order.  Allowing for predectible results.
+When this action runs, the various options run in a particular order.  Allowing for predictable results.
 1. fetch all records in default order from GitHub. Up to the default maximum 1000 `--fetch_limit`
 2. stop fetch once the optional `--fetch_limit` is reached.
 3. apply the `--include` filter.
@@ -278,7 +282,7 @@ pipenv run ghpkadmin --operation listPackageVersions --ghtoken <token> --org <yo
 ```
 ### Action
 ```yaml
-- name: Delete Packages without Tags
+- name: List Packages with tag
     uses: shaneapowell/ghaction-package-admin@v1
     with:
       operation: listPackageVersions

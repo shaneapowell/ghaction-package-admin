@@ -290,7 +290,7 @@ pipenv run ghpkadmin --operation listPackageVersions --ghtoken <token> --org <yo
       org: ${{ github.repository_owner }}
       page_type: container
       package_name: <name>
-      include: metadata.container.tags[*]"  .+-latest
+      include: metadata.container.tags[*]"  .+-latest$
       summary: true
 ```
 ### Docker
@@ -346,8 +346,8 @@ pipenv run ghpkadmin --operation deletePackageVersions --ghtoken <token> --org <
       user: ${{ github.repository_owner }}
       page_type: container
       package_name: <name>
-      include: metadata.container.tags[*]"  (?i)DEVELOP-.*
-      exclude: metadata.container.tags[*]"  .*-latest
+      include: metadata.container.tags[*]"  (?i)^DEVELOP-.*
+      exclude: metadata.container.tags[*]"  .*-latest$
       sort: "updated_at"
       reverse: true
       slice: 5  __NONE__

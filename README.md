@@ -317,7 +317,7 @@ pipenv run ghpkadmin --operation deletePackageVersions --ghtoken <token> --org <
       org: ${{ github.repository_owner }}
       page_type: container
       package_name: <name>
-      exclude: metadata.contaienr.tags[*]   .+
+      exclude: metadata.container.tags[*]   .+
 ```
 
 ### Docker
@@ -347,7 +347,7 @@ pipenv run ghpkadmin --operation deletePackageVersions --ghtoken <token> --org <
       page_type: container
       package_name: <name>
       include: metadata.container.tags[*]"  (?i)DEVELOP-.*
-      exclude: metadata.contaienr.tags[*]"  .*-latest
+      exclude: metadata.container.tags[*]"  .*-latest
       sort: "updated_at"
       reverse: true
       slice: 5  __NONE__

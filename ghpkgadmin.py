@@ -32,8 +32,8 @@ LIST_PACKAGES_FOR_USER = API_ROOT + "/users/{user}/packages?package_type={packag
 LIST_PACKAGE_VERSIONS_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}/versions?"
 LIST_PACKAGE_VERSIONS_FOR_USER = API_ROOT + "/users/{user}/packages/{package_type}/{package_name}/versions?"
 
-DELETE_PACKAGE_VERSION_FOR_ORG = LIST_PACKAGE_VERSIONS_FOR_ORG + "/{package_version_id}"
-DELETE_PACKAGE_VERSION_FOR_USER = LIST_PACKAGE_VERSIONS_FOR_USER + "/{package_version_id}"
+DELETE_PACKAGE_VERSION_FOR_ORG = API_ROOT + "/orgs/{org}/packages/{package_type}/{package_name}/versions/{package_version_id}"
+DELETE_PACKAGE_VERSION_FOR_USER = API_ROOT + "/users/{user}/packages/{package_type}/{package_name}/versions/{package_version_id}"
 
 PAGING_ARGS = "&per_page={per_page}&page={page}"
 

@@ -61,6 +61,12 @@ inputs:
     description: Enable extra debug output logging
     default: false
 
+outputs:
+  result_json_output:
+    description: The result of the operation in json format 
+  summary_json_output:
+    description: The summary of the operation in json format
+
 runs:
   using: docker
   image: docker://ghcr.io/shaneapowell/ghaction-package-admin:develop
@@ -78,7 +84,7 @@ runs:
     - --package_name
     - ${{ inputs.package_name }}
     - --include
-    - "${{ inputs.include }}"
+    - ${{ inputs.include }}
     - --exclude
     - ${{ inputs.exclude }}
     - --sort_by

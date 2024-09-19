@@ -5,6 +5,7 @@ A simple python script that can run a set of GitHub Package Admin functions.
 - delete package versions
 """
 import sys
+import os
 import argparse
 from typing import Optional, Any
 from enum import Enum
@@ -446,6 +447,11 @@ def _argListOfNonesToNone(val: Optional[list]):
     return val
 
 
+def _setActionOutput(name, value):
+    with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+        fh.write(f"{name}={value}\n")
+
+
 # ***************************************
 # MAIN
 # ***************************************
@@ -642,6 +648,8 @@ if __name__ == '__main__':
 
     if printSummary:
         INFO_PRINT(json.dumps(summary, indent=4))
+        _setActionOutput("summary_json_output", json.dumps(summary))
 
     if printResult:
         INFO_PRINT(json.dumps(result, indent=4))
+        _setActionOutput("result_json_output", json.dumps(result))
